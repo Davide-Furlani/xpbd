@@ -26,6 +26,13 @@ endif ()
 
 # --- Add source files ---
 add_subdirectory(src)
+add_subdirectory(third_party/glm)
+
+
+# glad library
+add_library(glad STATIC
+        third_party/glad/glad.c)
+target_include_directories(glad PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 
 set(INSTALL_DIR ${PROJECT_SOURCE_DIR}/bin)

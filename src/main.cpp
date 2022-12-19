@@ -1,7 +1,6 @@
-#include "Headers/glad/glad.h"
-#include "Headers/GLFW/glfw3.h"
-
-#include "Headers/glm/glm.hpp"
+#include <glad.h>
+#include <glfw3.h>
+#include <glm.hpp>
 
 #include <iostream>
 

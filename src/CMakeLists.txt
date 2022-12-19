@@ -1,10 +1,4 @@
 # --- Source code ----
-add_subdirectory(Headers/glm)
-
-# glad library
-add_library(glad STATIC
-        Headers/glad/glad.c)
-target_include_directories(glad PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 
 add_executable(cloth_sim 
@@ -12,7 +6,9 @@ add_executable(cloth_sim
 
 target_include_directories(cloth_sim PRIVATE
         ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/src/Headers/GLFW)
+        ${CMAKE_SOURCE_DIR}/third_party/GLFW
+        ${CMAKE_SOURCE_DIR}/third_party/glad
+        ${CMAKE_SOURCE_DIR}/third_party/glm)
 
 target_link_libraries(cloth_sim PRIVATE
         glfw
