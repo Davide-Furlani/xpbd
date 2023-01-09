@@ -1,15 +1,15 @@
 #include <glad.h>
 #include <glfw3.h>
-#include <glm.hpp>
 
+#include <glm.hpp>
 #include <iostream>
 
 #define STB_IMAGE_IMPLEMENTATION
 
-#include "Headers/stb_image.h"
 #include "Headers/Cloth.h"
-#include "Headers/Rigid.h"
 #include "Headers/Display.h"
+#include "Headers/Rigid.h"
+#include "Headers/stb_image.h"
 
 #define WIDTH 800
 #define HEIGHT 800
@@ -20,6 +20,10 @@
 /** Executing Flow **/
 int running = 1;
 
+/** cycle simulation method*/
+enum Sim_status { IMPLICIT_EULER, PBD, XPBD };
+Sim_status sim_status = Sim_status::IMPLICIT_EULER;
+
 /** Functions **/
 void processInput(GLFWwindow* window);
 
@@ -27,6 +31,7 @@ void processInput(GLFWwindow* window);
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos);
+void input_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
 
 /** Global **/
 // Wind
@@ -54,8 +59,7 @@ GLFWwindow* window;
 Vec3 bgColor = Vec3(50.0 / 255, 50.0 / 255, 60.0 / 255);
 Vec3 gravity(0.0, -9.8 / cloth.iterationFreq, 0.0);
 
-int main(int argc, const char* argv[])
-{
+int main(int argc, const char* argv[]) {
     /** Prepare for rendering **/
     // Initialize GLFW
     glfwInit();
@@ -82,15 +86,18 @@ int main(int argc, const char* argv[])
     // Initialize GLAD : this should be done before using any openGL function
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         std::cout << "Failed to initialize GLAD." << std::endl;
-        glfwTerminate(); // This line isn't in the official source code, but I think that it should be added here.
+        glfwTerminate();  // This line isn't in the official source code, but I think that it should
+                          // be added here.
         return -1;
     }
 
     /** Register callback functions **/
-    // Callback functions should be registered after creating window and before initializing render loop
+    // Callback functions should be registered after creating window and before initializing render
+    // loop
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetCursorPosCallback(window, cursor_pos_callback);
+    glfwSetKeyCallback(window, input_callback);
 
     /** Renderers **/
     ClothRender clothRender(&cloth);
@@ -106,40 +113,62 @@ int main(int argc, const char* argv[])
 
     /** Redering loop **/
     running = 1;
-    while (!glfwWindowShouldClose(window))
-    {
+    while (!glfwWindowShouldClose(window)) {
         /** Check for events **/
         processInput(window);
 
         /** Set background clolor **/
-        glClearColor(bgColor.x, bgColor.y, bgColor.z, 1.0); // Set color value (R,G,B,A) - Set Status
+        glClearColor(
+            bgColor.x, bgColor.y, bgColor.z, 1.0);  // Set color value (R,G,B,A) - Set Status
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        /** -------------------------------- Simulation & Rendering -------------------------------- **/
+        /** -------------------------------- Simulation & Rendering --------------------------------
+         * **/
 
         if (running) {
-            for (int i = 0; i < cloth.iterationFreq; i++) {
-                cloth.computeForce(TIME_STEP, gravity);
-                cloth.integrate(AIR_FRICTION, TIME_STEP);
-                cloth.collisionResponse(&ground, &ball);
+            switch (sim_status) {
+                case Sim_status::IMPLICIT_EULER:
+                    for (int i = 0; i < cloth.iterationFreq; i++) {
+                        cloth.EIcomputeForce(TIME_STEP, gravity);
+                        cloth.EIintegrate(AIR_FRICTION, TIME_STEP);
+                        cloth.collisionResponse(&ground, &ball);
+                    }
+                    break;
+                case Sim_status::PBD:
+                    for(int i = 0; i < cloth.iterationFreq; i++){
+                        cloth.PBDupdateVelocity(TIME_STEP, gravity);
+                        cloth.PBDpredictPositions(TIME_STEP);
+                        cloth.collisionResponse(&ground, &ball);
+                        cloth.PBDinternalConstraints(TIME_STEP);
+                    }
+                    break;
+                case Sim_status::XPBD:
+                    for(int i = 0; i < cloth.iterationFreq; i++){
+                        cloth.collisionResponse(&ground, &ball);
+                    }
+                    break;
+                default:
+                    exit(1);
+                    break;
             }
+
             cloth.computeNormal();
         }
 
         /** Display **/
         if (cloth.drawMode == Cloth::DRAW_LINES) {
             clothSpringRender.flush();
-        }
-        else {
+        } else {
             clothRender.flush();
         }
         ballRender.flush();
         groundRender.flush();
 
-        /** -------------------------------- Simulation & Rendering -------------------------------- **/
+        /** -------------------------------- Simulation & Rendering --------------------------------
+         * **/
 
         glfwSwapBuffers(window);
-        glfwPollEvents(); // Update the status of window
+        glfwPollEvents();  // Update the status of window
     }
 
     glfwTerminate();
@@ -147,34 +176,28 @@ int main(int argc, const char* argv[])
     return 0;
 }
 
-
-
-
-
-void framebuffer_size_callback(GLFWwindow* window, int width, int height)
-{
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
-void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
-{
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && running) // Start wind
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS && running)  // Start wind
     {
         windBlowing = 1;
         // Set start point of wind direction
         windStartPos.setZeroVec();
         glfwGetCursorPos(window, &windStartPos.x, &windStartPos.y);
-        windStartPos.y = -windStartPos.y; // Reverse y since the screen local in the fourth quadrant
+        windStartPos.y
+            = -windStartPos.y;  // Reverse y since the screen local in the fourth quadrant
     }
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE && running) // End wind
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE && running)  // End wind
     {
         windBlowing = 0;
         windDir.setZeroVec();
     }
 }
 
-void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
-{
+void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
     /** Wind **/
     if (windBlowing && running) {
         windDir = Vec3(xpos, -ypos, 0) - windStartPos;
@@ -184,9 +207,24 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos)
     }
 }
 
-void processInput(GLFWwindow* window)
-{
-    /** Keyboard control **/ // If key did not get pressed it will return GLFW_RELEASE
+void input_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
+    /**cycle simulation method*/
+    if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS && sim_status == Sim_status::IMPLICIT_EULER) {
+        sim_status = Sim_status::PBD;
+        std::cout << "PBD" << std::endl;
+    }else
+    if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS && sim_status == Sim_status::PBD) {
+        sim_status = Sim_status::XPBD;
+        std::cout << "XPBD" << std::endl;
+    }else
+    if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS && sim_status == Sim_status::XPBD) {
+        sim_status = Sim_status::IMPLICIT_EULER;
+        std::cout << "IMPLICIT_EULER" << std::endl;
+    }
+}
+
+void processInput(GLFWwindow* window) {
+    /** Keyboard control **/  // If key did not get pressed it will return GLFW_RELEASE
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
     }

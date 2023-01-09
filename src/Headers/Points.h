@@ -20,6 +20,7 @@ class Node
 {
 public:
     double  mass;           // In this project it will always be 1
+    double  w;              // the inverse of mass
     bool    isFixed;        // Use to pin the cloth
     Vec2    texCoord;       // Texture coord
     Vec3    normal;         // For smoothly shading
@@ -31,6 +32,7 @@ public:
 public:
     Node(void) {
         mass = 1.0;
+        w = 1.0/mass;
         isFixed = false;
         velocity.setZeroVec();
         force.setZeroVec();
@@ -39,6 +41,7 @@ public:
 	Node(Vec3 pos)
     {
         mass = 1.0;
+        w = 1.0/mass;
         isFixed = false;
         position = pos;
         velocity.setZeroVec();
