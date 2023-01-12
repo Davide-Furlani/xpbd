@@ -107,19 +107,19 @@ class Cloth {
             for (int j = 0; j < nodesPerCol; j++) {
                 /** Structural **/
                 if (i < nodesPerRow - 1)
-                    springs.push_back(new Spring(getNode(i, j), getNode(i + 1, j), structuralCoef));
+                    springs.push_back(new Spring(getNode(i, j), getNode(i + 1, j), structuralCoef, SpringType::STRUCTURAL));
                 if (j < nodesPerCol - 1)
-                    springs.push_back(new Spring(getNode(i, j), getNode(i, j + 1), structuralCoef));
+                    springs.push_back(new Spring(getNode(i, j), getNode(i, j + 1), structuralCoef, SpringType::STRUCTURAL));
                 /** Shear **/
                 if (i < nodesPerRow - 1 && j < nodesPerCol - 1) {
-                    springs.push_back(new Spring(getNode(i, j), getNode(i + 1, j + 1), shearCoef));
-                    springs.push_back(new Spring(getNode(i + 1, j), getNode(i, j + 1), shearCoef));
+                    springs.push_back(new Spring(getNode(i, j), getNode(i + 1, j + 1), shearCoef, SpringType::SHEAR));
+                    springs.push_back(new Spring(getNode(i + 1, j), getNode(i, j + 1), shearCoef, SpringType::SHEAR));
                 }
                 /** Bending **/
                 if (i < nodesPerRow - 2)
-                    springs.push_back(new Spring(getNode(i, j), getNode(i + 2, j), bendingCoef));
+                    springs.push_back(new Spring(getNode(i, j), getNode(i + 2, j), bendingCoef, SpringType::BENDING));
                 if (j < nodesPerCol - 2)
-                    springs.push_back(new Spring(getNode(i, j), getNode(i, j + 2), bendingCoef));
+                    springs.push_back(new Spring(getNode(i, j), getNode(i, j + 2), bendingCoef, SpringType::BENDING));
             }
         }
 
@@ -190,59 +190,76 @@ class Cloth {
         }
     }
 
-    void PBDupdateVelocity(double timeStep, Vec3 gravity) {
+    void XPBDpredict(double timeStep, Vec3 gravity) {
         /** Nodes **/
-        for (int i = 0; i < nodes.size(); i++) {
-            if (!nodes[i]->isFixed)
-                nodes[i]->velocity = nodes[i]->velocity + (gravity * timeStep * nodes[i]->w);
-        }
-        for (int i = 0; i < springs.size(); i++) {
-            springs[i]->applyInternalForce(timeStep);
+        for (auto node: nodes) {
+            if (node->w == 0.0)
+                return;
+            node->velocity += gravity * timeStep;
+            node->prev_pos = node->position;
+            node->position += node->velocity * timeStep;
         }
     }
 
-    void PBDpredictPositions(double timeStep) {
+    void XPBDupdatevelocity(double timeStep) {
         /** Nodes **/
-        for (int i = 0; i < nodes.size(); i++) {
-            if (!nodes[i]->isFixed)
-                nodes[i]->position = nodes[i]->position + (nodes[i]->velocity * timeStep);
+        for (auto node: nodes) {
+            if (node->w == 0.0)
+                continue;
+            node->velocity = (node->position - node->prev_pos) * 1.0/timeStep;
         }
     }
 
-    void PBDsolveStretching(double s_compliance, double timeStep) {
+    void XPBDsolveStretching(double s_compliance, double timeStep) {
         double alpha = s_compliance / timeStep / timeStep;
         for (auto spring : springs) {
+            if(spring->type == SpringType::BENDING)
+                continue;
             Node* n1 = spring->node1;
             Node* n2 = spring->node2;
             if (n1->w + n2->w == 0.0) return;
-            Vec3 distance = Vec3(n1->position.x - n2->position.x,
-                                 n1->position.y - n2->position.y,
-                                 n1->position.z - n2->position.z);
-            double abs_distance
-                = sqrt(distance.x * distance.x + distance.y * distance.y + distance.z * distance.z);
+            Vec3 distance = n1->position - n2->position;
+            double abs_distance = sqrt(distance.x * distance.x + distance.y * distance.y + distance.z * distance.z);
             if (abs_distance == 0.0) return;
-            distance.x *= 1 / abs_distance;
-            distance.y *= 1 / abs_distance;
-            distance.z *= 1 / abs_distance;
+            distance *= 1 / abs_distance;
 
             double rest_len = spring->restLen;
             double C = abs_distance - rest_len;
-            double s = -C / ((n1->w + n2->w) + alpha);
+            double s = -C / ((n1->w + n2->w) + 0.0);
 
-            n1->position.x += distance.x * s * n1->w;
-            n1->position.y += distance.y * s * n1->w;
-            n1->position.z += distance.z * s * n1->w;
+            n1->position += distance * s * n1->w;
 
-            n2->position.x += distance.x * -s * n2->w;
-            n2->position.y += distance.y * -s * n2->w;
-            n2->position.z += distance.z * -s * n2->w;
+            n2->position += distance * -s * n2->w;
         }
     }
-    void PBDsolveBending(double b_compliance, double timeStep) {}
 
-    void PBDinternalConstraints(double timeStep) {
-        PBDsolveStretching(0.0, timeStep);
-        // PBDsolveBending(1.0, timeStep);
+    void XPBDsolveBending(double b_compliance, double timeStep) {
+        double alpha = b_compliance / timeStep / timeStep;
+        for (auto spring : springs) {
+            if(spring->type != SpringType::BENDING)
+                continue;
+            Node* n1 = spring->node1;
+            Node* n2 = spring->node2;
+            if (n1->w + n2->w == 0.0) return;
+            Vec3 distance = n1->position - n2->position;
+            double abs_distance = sqrt(distance.x * distance.x + distance.y * distance.y + distance.z * distance.z);
+            if (abs_distance == 0.0) return;
+            distance *= 1 / abs_distance;
+
+            double rest_len = spring->restLen/10;
+            double C = abs_distance - rest_len;
+            double s = -C / ((n1->w + n2->w) + 0.0);
+
+            n1->position += distance * s * n1->w;
+
+            n2->position += distance * -s * n2->w;
+
+        }
+    }
+
+    void XPBDsolveconstraints(double timeStep) {
+        XPBDsolveStretching(0.0, timeStep);
+        //XPBDsolveBending(0.0, timeStep);
     }
 
     Vec3 getWorldPos(Node* n) { return clothPos + n->position; }

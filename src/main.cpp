@@ -21,8 +21,8 @@
 int running = 1;
 
 /** cycle simulation method*/
-enum Sim_status { IMPLICIT_EULER, PBD, XPBD };
-Sim_status sim_status = Sim_status::IMPLICIT_EULER;
+enum Sim_status { IMPLICIT_EULER, XPBD };
+Sim_status sim_status = Sim_status::XPBD;
 
 /** Functions **/
 void processInput(GLFWwindow* window);
@@ -134,17 +134,12 @@ int main(int argc, const char* argv[]) {
                         cloth.collisionResponse(&ground, &ball);
                     }
                     break;
-                case Sim_status::PBD:
-                    for(int i = 0; i < cloth.iterationFreq; i++){
-                        cloth.PBDupdateVelocity(TIME_STEP, gravity);
-                        cloth.PBDpredictPositions(TIME_STEP);
-                        cloth.collisionResponse(&ground, &ball);
-                        cloth.PBDinternalConstraints(TIME_STEP);
-                    }
-                    break;
                 case Sim_status::XPBD:
                     for(int i = 0; i < cloth.iterationFreq; i++){
+                        cloth.XPBDpredict(TIME_STEP, gravity);
                         cloth.collisionResponse(&ground, &ball);
+                        cloth.XPBDsolveconstraints(TIME_STEP);
+                        //cloth.XPBDupdatevelocity(TIME_STEP);
                     }
                     break;
                 default:
@@ -210,10 +205,6 @@ void cursor_pos_callback(GLFWwindow* window, double xpos, double ypos) {
 void input_callback(GLFWwindow* window, int key, int scancode, int action, int mods){
     /**cycle simulation method*/
     if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS && sim_status == Sim_status::IMPLICIT_EULER) {
-        sim_status = Sim_status::PBD;
-        std::cout << "PBD" << std::endl;
-    }else
-    if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS && sim_status == Sim_status::PBD) {
         sim_status = Sim_status::XPBD;
         std::cout << "XPBD" << std::endl;
     }else

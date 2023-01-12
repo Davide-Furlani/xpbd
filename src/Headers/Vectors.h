@@ -109,6 +109,19 @@ struct Vec3
 	{
 		return Vec3(x/n, y/n, z/n);
 	}
+
+    void operator*=(double n)
+	{
+        x *= n;
+        y *= n;
+        z *= n;
+	}
+	void operator/=(double n)
+	{
+        x /= n;
+        y /= n;
+        z /= n;
+	}
     
     bool operator ==(Vec3 &v)
     {

@@ -4,6 +4,8 @@
 
 using namespace std;
 
+enum class SpringType { SHEAR, BENDING, STRUCTURAL};
+
 class Spring
 {
 public:
@@ -12,8 +14,9 @@ public:
 	double restLen;
     double hookCoef;
     double dampCoef;
+    SpringType type;
     
-	Spring(Node *n1, Node *n2, double k)
+	Spring(Node *n1, Node *n2, double k, SpringType t)
 	{
         node1 = n1;
         node2 = n2;
@@ -22,6 +25,7 @@ public:
         restLen = currSp.length();
         hookCoef = k;
         dampCoef = 5.0;
+        type = t;
 	}
 
 	void applyInternalForce(double timeStep) // Compute spring internal force

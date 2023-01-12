@@ -25,6 +25,7 @@ public:
     Vec2    texCoord;       // Texture coord
     Vec3    normal;         // For smoothly shading
 	Vec3	position;
+    Vec3    prev_pos;
     Vec3    velocity;
     Vec3    force;
 	Vec3	acceleration;
