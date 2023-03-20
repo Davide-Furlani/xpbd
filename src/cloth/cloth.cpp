@@ -351,6 +351,7 @@ namespace cloth {
     void Cloth::XPBD_solve_constraints(float t, render::State& s){
         XPBD_solve_stretching(t, s);
         XPBD_solve_bending(t);
+        
     }
     void Cloth::XPBD_solve_stretching(float timeStep, render::State& s) {
         
