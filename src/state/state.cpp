@@ -18,6 +18,9 @@ namespace render {
         scr_width = w;
         scr_height = h;
         
+        start_time = glfwGetTime();
+        current_time_from_start = 0.0;
+        
         last_frame_time = glfwGetTime();
         current_frame_time = glfwGetTime();
         delta_time = 0.0;
@@ -32,6 +35,9 @@ namespace render {
     }
 
     void State::update(GLFWwindow *window) {
+        
+        current_time_from_start = glfwGetTime() - start_time;
+        
         last_frame_time = current_frame_time;
         current_frame_time = static_cast<float>(glfwGetTime());
         delta_time = current_frame_time - last_frame_time;

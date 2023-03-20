@@ -29,6 +29,10 @@ public:
     */
     vec3 prev_pos;
     /**
+     * Thickness of the particle
+     */
+    float thickness;
+    /**
      * Mass of the node
     */
     float m;
@@ -62,6 +66,7 @@ public:
      * @param uv_coordinates
      */
     Node(vec3 position, 
+        float thickness,
         float mass, 
         vec3 velocity, 
         vec3 normal,

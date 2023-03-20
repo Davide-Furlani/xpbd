@@ -12,25 +12,26 @@
 
 namespace cloth{
 
-Node::Node(vec3 position, float mass, vec3 velocity, vec3 normal, vec2 uv_coordinates){
-    pos       = position;
-    prev_pos  = position;
-    m         = mass;
-    w         = 1.0 / mass;
-    vel       = velocity;
-    prev_vel  = velocity;
-    n         = normal;
-    uv_c      = uv_coordinates;
+Node::Node(vec3 position, float thickness, float mass, vec3 velocity, vec3 normal, vec2 uv_coordinates){
+    this->pos       = position;
+    this->prev_pos  = position;
+    this->thickness = thickness;
+    this->m         = mass;
+    this->w         = 1.0 / mass;
+    this->vel       = velocity;
+    this->prev_vel  = velocity;
+    this->n         = normal;
+    this->uv_c      = uv_coordinates;
 }
 
 
 float Node::distance(Node& node){
     
-    return sqrt(powf((pos.x - node.pos.x), 2) +
-                powf((pos.y - node.pos.y), 2) +
-                powf((pos.z - node.pos.z), 2));
+    float x = pos.x - node.pos.x;
+    float y = pos.y - node.pos.y;
+    float z = pos.z - node.pos.z;
     
-    
+    return sqrt(x*x + y*y + z*z);
 }
 
 std::ostream& operator<<(std::ostream& os, const Node& node) {

@@ -19,7 +19,11 @@ namespace render {
         unsigned scr_width;
         unsigned scr_height;
         glm::vec3 gravity {0.0, 0.0, -9.81};
-
+        int iteration_per_frame = 30;
+        
+        double start_time = 0.0;
+        double current_time_from_start = 0.0;
+        
         double last_frame_time = 0.0;
         double current_frame_time = 0.0;
         double delta_time = 0.0;

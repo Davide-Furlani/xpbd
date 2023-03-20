@@ -39,10 +39,6 @@ namespace render{
     
     void set_GL_parameters();
 
-    vertex_buffer load_vertices(cloth::Cloth& cloth);
-
-    [[nodiscard]] Shader load_shaders(std::filesystem::path& vert_p, std::filesystem::path& frag_p);
-
     unsigned int load_textures(std::filesystem::path& texture);
 
 }

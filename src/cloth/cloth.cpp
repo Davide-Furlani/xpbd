@@ -25,7 +25,7 @@
 
 namespace cloth {
     
-    Cloth::Cloth(int rows, int columns, float size, render::State& s){
+    Cloth::Cloth(int rows, int columns, float size, float thickness, render::State& s){
         Cloth::rows = rows;
         Cloth::columns = columns;
         
@@ -43,7 +43,7 @@ namespace cloth {
             for(int j=0; j<columns; ++j){
                 vec3 pos {static_cast<float>(j)/(size*static_cast<float>(columns-1)), static_cast<float>(i)/(size*static_cast<float>(columns-1)), z_constant};
                 vec2 uv_c {static_cast<float>(j)/static_cast<float>(columns-1), static_cast<float>(i)/static_cast<float>(rows-1)};
-                nodes.emplace_back(Node(pos, mass, vel, normal, uv_c));
+                nodes.emplace_back(Node(pos, thickness, mass, vel, normal, uv_c));
             }
         }
 
@@ -107,13 +107,19 @@ namespace cloth {
         pin2_index = index;
     }
 
+    void Cloth::proces_input(GLFWwindow *window){
+        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+            unpin1();
+        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+            unpin2();
+    }
     void Cloth::unpin1() {
-        nodes.at(pin1_index).m = 0.0;
-        nodes.at(pin1_index).w = std::numeric_limits<float>::infinity();
+        nodes.at(pin1_index).m = 1.0;
+        nodes.at(pin1_index).w = 1.0;
     }
     void Cloth::unpin2() {
-        nodes.at(pin2_index).m = 0.0;
-        nodes.at(pin2_index).w = std::numeric_limits<float>::infinity();
+        nodes.at(pin2_index).m = 1.0;
+        nodes.at(pin2_index).w = 1.0;
     }
 
     void Cloth::generate_verts() {
@@ -159,20 +165,20 @@ namespace cloth {
             generate_verts();
         
         for (auto t : up_left_tris){
-            s_cs.emplace_back(nodes.at(t.a), nodes.at(t.b));
-            s_cs.emplace_back(nodes.at(t.b), nodes.at(t.c));
-            s_cs.emplace_back(nodes.at(t.a), nodes.at(t.c));
+                s_cs.emplace_back(nodes.at(t.a), nodes.at(t.b), false);
+                s_cs.emplace_back(nodes.at(t.b), nodes.at(t.c), true); // questo mi crea i constraints oblicui e mi rompe tutto
+                s_cs.emplace_back(nodes.at(t.a), nodes.at(t.c), false);
         }
         
         for(int i=columns-1; i<columns*(rows-1); i+=columns){
-            s_cs.emplace_back(nodes.at(i), nodes.at(i+columns));
+                s_cs.emplace_back(nodes.at(i), nodes.at(i+columns), false);
         }
         for(int i=columns*(rows-1); i<(rows*columns)-1; ++i){
-            s_cs.emplace_back(nodes.at(i), nodes.at(i+1));
+                s_cs.emplace_back(nodes.at(i), nodes.at(i+1), false);
         }
 
 
-//        std::cout << "fine generazione constr" << std::endl;
+        std::cout << "fine generazione stretch constraints " << s_cs.size() << std::endl;
     }
 
     void Cloth::generate_bend_constraints() {
@@ -307,54 +313,67 @@ namespace cloth {
         glDeleteBuffers(1, &VBO);
         shader.destroy();
     }
-
+    
     void Cloth::simulate_XPBD(render::State& s) {
         
-        float timestep = (1.0/60.0)/iteration_per_frame; // frame indipendent, la velocità della simulazione è come se fosse costante a 60 frame al secondo, se non riesce a generare 60 frame al secondo la simulazione sembra rallentata
+        float timestep = (1.0f/60.0f)/s.iteration_per_frame; // frame indipendent, la velocità della simulazione è come se fosse costante a 60 frame al secondo, se non riesce a generare 60 frame al secondo la simulazione sembra rallentata
         //float timestep = (s.delta_time)/iteration_per_frame; // la simulazione dovrebbe avere velocità costante
-        for(int i=0; i< iteration_per_frame; ++i){
+        for(int i=0; i< s.iteration_per_frame; ++i){
             XPBD_predict(timestep, s.gravity);
+            TMP_solve_ground_collisions();
             XPBD_solve_constraints(timestep, s);
             XPBD_update_velocity(timestep);
         }
     }
     void Cloth::XPBD_predict(float t, glm::vec3 g){
         /** Nodes **/
-        for (int i=0; i<nodes.size(); ++i) {
-            if (nodes.at(i).w == 0.0)
+        for (auto& n : nodes) {
+            if (n.w == 0.0)
                 continue;
                 
-            nodes.at(i).vel += g * t;
-            nodes.at(i).prev_pos = nodes.at(i).pos;
-            nodes.at(i).pos += nodes.at(i).vel * t;
+            n.vel += g * t;
+            n.prev_pos = n.pos;
+            n.pos += n.vel * t;
+        }
+    }
+    void Cloth::TMP_solve_ground_collisions() {
+        for (auto& n : nodes) {
+            if (n.w == 0.0)
+                continue;
+            if (n.pos.z < 0.5*n.thickness) {
+                float damping = 0.0002;
+                vec3 diff = n.pos - n.prev_pos;
+                n.pos += diff * -damping;
+                n.pos.z = 0.5f * n.thickness;
+            }
         }
     }
     void Cloth::XPBD_solve_constraints(float t, render::State& s){
         XPBD_solve_stretching(t, s);
         XPBD_solve_bending(t);
-        
     }
-    void Cloth::XPBD_solve_stretching(float timeStep, render::State& state) {
+    void Cloth::XPBD_solve_stretching(float timeStep, render::State& s) {
         
         for (auto& s_c : s_cs) {
             float alpha = s_c.compliance / timeStep / timeStep;
             if (s_c.nodes.first.w + s_c.nodes.second.w == 0.0)
                 continue;
             vec3 distance = s_c.nodes.first.pos - s_c.nodes.second.pos;
-            float abs_distance = sqrt(distance.x * distance.x + distance.y * distance.y + distance.z * distance.z);
+            float abs_distance = static_cast<float>(sqrt(pow(distance.x,2) + pow(distance.y,2) + pow(distance.z,2)));
             
-            if (abs_distance == 0.0) 
+            if (abs_distance == 0.0)
                 continue;
-            distance *= 1 / abs_distance;
+            distance = distance * (1 / abs_distance);
 
             float rest_len = s_c.rest_dist;
-            float C = abs_distance - rest_len;
-            float s = -C / static_cast<float>((s_c.nodes.first.w + s_c.nodes.second.w) + alpha);
+            float error = abs_distance - rest_len;
+            float correction = -error / (s_c.nodes.first.w + s_c.nodes.second.w + alpha);
             
-            s_c.nodes.first.pos += distance * static_cast<float>(s) * s_c.nodes.first.w;
-            s_c.nodes.second.pos += distance * static_cast<float>(-s) * s_c.nodes.second.w;
+            float first_corr = correction * s_c.nodes.first.w;
+            float second_corr = -correction * s_c.nodes.second.w;
             
-            
+            s_c.nodes.first.pos += distance * first_corr;
+            s_c.nodes.second.pos += distance * second_corr;
         }
     }
     void Cloth::XPBD_solve_bending(float timeStep) {
@@ -364,17 +383,17 @@ namespace cloth {
             if (b_c.nodes.first.w + b_c.nodes.second.w == 0.0)
                 continue;
             vec3 distance = b_c.nodes.first.pos - b_c.nodes.second.pos;
-            float abs_distance = sqrt(distance.x * distance.x + distance.y * distance.y + distance.z * distance.z);
+            float abs_distance = static_cast<float>(sqrt(pow(distance.x,2) + pow(distance.y,2) + pow(distance.z,2)));
             if (abs_distance == 0.0)
                 continue;
             distance *= 1 / abs_distance;
 
             float rest_len = b_c.rest_dist;
-            float C = abs_distance - rest_len;
-            float s = -C / ((b_c.nodes.first.w + b_c.nodes.second.w) + alpha);
+            float error = abs_distance - rest_len;
+            float correction = -error / ((b_c.nodes.first.w + b_c.nodes.second.w) + alpha);
 
-            b_c.nodes.first.pos += distance * s * b_c.nodes.first.w;
-            b_c.nodes.second.pos += distance * -s * b_c.nodes.second.w;
+            b_c.nodes.first.pos += distance * correction * b_c.nodes.first.w;
+            b_c.nodes.second.pos += distance * -correction * b_c.nodes.second.w;
         }
     }
     void Cloth::XPBD_update_velocity(float t){

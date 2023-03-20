@@ -10,18 +10,9 @@
 #include "constraints/s_constr.h"
 
 namespace cloth{
-StretchConstraint::StretchConstraint(Node& node1, Node& node2) : nodes(node1,node2){
+StretchConstraint::StretchConstraint(Node& node1, Node& node2, bool ob) : nodes(node1,node2){
     rest_dist = node1.distance(node2);
-}
-
-StretchConstraint::StretchConstraint(Node& node1, Node& node2, float compliance) : nodes(node1,node2){
-    rest_dist = node1.distance(node2);
-    StretchConstraint::compliance = compliance;
-}
-
-StretchConstraint::StretchConstraint(Node& node1, Node& node2, float compliance, float rest_distance) : nodes(node1,node2) {
-    StretchConstraint::rest_dist = rest_distance;
-    StretchConstraint::compliance = compliance;
+    obliquo = ob;
 }
 
 std::ostream& operator<<(std::ostream& os, const StretchConstraint& s) {

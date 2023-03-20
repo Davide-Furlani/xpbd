@@ -21,7 +21,6 @@ class Cloth
 {
 public:
     // physics
-    int iteration_per_frame = 15;
     std::vector<Node> nodes;
     //float damping = 0.9999;
     std::vector<StretchConstraint> s_cs;
@@ -51,11 +50,12 @@ public:
     std::vector<triangle_struct> all_tris;
     // fine temporaneo
     
-    Cloth(int rows, int columns, float size, render::State& s);
+    Cloth(int rows, int columns, float size, float thickness, render::State& s);
     
     void pin1(int index);
     void pin2(int index);
     
+    void proces_input(GLFWwindow *window);
     void unpin1();
     void unpin2();
     
@@ -69,12 +69,14 @@ public:
     void compute_normals();
     void render(render::Camera& c);
 
+    
+    void TMP_solve_ground_collisions();
     void simulate_XPBD (render::State& s);
     void XPBD_predict(float t, glm::vec3 g);
     void XPBD_solve_constraints(float t, render::State& s);
     void XPBD_update_velocity(float t);
-    void XPBD_solve_stretching(float timeStep, render::State& s);
-    void XPBD_solve_bending(float timeStep);
+    void XPBD_solve_stretching(float t, render::State& s);
+    void XPBD_solve_bending(float t);
 
     void free_resources();
 };

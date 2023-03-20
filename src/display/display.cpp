@@ -68,7 +68,7 @@ namespace render {
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_REFRESH_RATE, GLFW_DONT_CARE);
-        //glfwWindowHint(GLFW_DOUBLEBUFFER, GL_FALSE);
+//        glfwWindowHint(GLFW_DOUBLEBUFFER, GL_FALSE); // no framerate max
 
         //buffer di pixel 2x2 per anti aliasing
         glfwWindowHint(GLFW_SAMPLES, 4);
@@ -99,32 +99,6 @@ namespace render {
         glEnable(GL_DEPTH_TEST);
         //enable anti aliasing
         glEnable(GL_MULTISAMPLE);
-    }
-
-    vertex_buffer load_vertices(cloth::Cloth& cloth){
-        unsigned int VBO, VAO;
-        glGenVertexArrays(1, &VAO);
-        glGenBuffers(1, &VBO);
-
-        glBindVertexArray(VAO);
-
-        glBindBuffer(GL_ARRAY_BUFFER, VBO);
-        glBufferData(GL_ARRAY_BUFFER, sizeof(&cloth.get_GL_tris()[0]), &cloth.get_GL_tris()[0], GL_STATIC_DRAW);
-
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
-        glEnableVertexAttribArray(0);
-
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3*sizeof(float)));
-        glEnableVertexAttribArray(1);
-
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6*sizeof(float)));
-        glEnableVertexAttribArray(2);
-        
-        return vertex_buffer{VAO, VBO};
-    }
-
-    Shader load_shaders(std::filesystem::path& vert_p, std::filesystem::path& frag_p){
-        return Shader(&vert_p.string()[0], &frag_p.string()[0]);
     }
 
     unsigned int load_textures(std::filesystem::path& texture_p){

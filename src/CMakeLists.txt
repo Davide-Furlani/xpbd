@@ -12,6 +12,23 @@ target_include_directories(node PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)
 
 
 
+# triangle library
+add_library(triangle STATIC
+        triangle/triangle.cpp)
+target_include_directories(node PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(node PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)
+
+
+# hashgrid library
+add_library(hashgrid STATIC
+        hashgrid/hashgrid.cpp)
+target_include_directories(hashgrid PRIVATE ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(hashgrid PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)
+target_link_libraries(hashgrid PRIVATE 
+        node
+        triangle)
+
+
 
 
 # stretching constraints library
@@ -22,8 +39,6 @@ add_library(constr STATIC
 target_include_directories(constr PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(constr PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)
 target_link_libraries(constr PRIVATE node)
-
-
 
 
 
@@ -42,14 +57,10 @@ target_link_libraries(state PRIVATE
 
 
 
-
-
-
 # display library
 add_library(display STATIC
         display/display.cpp
         display/camera.cpp
-        #display/scene.cpp
         )
 target_include_directories(display PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(display PRIVATE 
@@ -62,10 +73,6 @@ target_link_libraries(display PRIVATE
         state
         glfw
         )
-
-
-
-
 
 
 
@@ -85,9 +92,6 @@ target_link_libraries(cloth PRIVATE
 
 
 
-
-
-
 add_executable(cloth_sim 
         main.cpp)
 
@@ -102,8 +106,9 @@ target_link_libraries(cloth_sim PRIVATE
         glfw
         glad
         node
+        hashgrid
+        state
         constr
         cloth
         display
-        state
         )

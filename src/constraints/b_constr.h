@@ -23,6 +23,7 @@ struct BendConstraint
     */
     float rest_dist;
     float compliance = 0.03;
+    
 
     BendConstraint(Node& node1, Node& node2);
     BendConstraint(Node& node1, Node& node2, float compliance);

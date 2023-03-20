@@ -1,18 +1,17 @@
 #include <iostream>
-#include <filesystem>
 
 #include <glad.h>
 #include <GLFW/glfw3.h>
 #include <glm.hpp>
-#include <sys/time.h>
 #include "cloth/cloth.h"
 #include "display/display.h"
 #include "state/state.h"
 #include "display/camera.h"
 #include "display/axis.h"
+#include "display/floor.h"
 
-const unsigned int SCR_WIDTH = 1280;
-const unsigned int SCR_HEIGHT = 720;
+const unsigned int SCR_WIDTH = 700;
+const unsigned int SCR_HEIGHT = 500;
 
 using namespace glm;
 using namespace render;
@@ -26,13 +25,14 @@ int main(){
     
     set_GL_parameters();
 
-    cloth::Cloth cloth {60, 60, 1.0, state};
+    cloth::Cloth cloth {120, 40, 1.0, 0.01, state};
     
-    render::Camera camera {glm::vec3(0.0, 3.0, 2.0),
-                           glm::vec3(0.0, -1.0, -1.0),
+    render::Camera camera {glm::vec3(4.0, 3.0, 1.0), 
+                           glm::vec3(-1.0, -1.0, -0.3),
                            glm::vec3(0.0, 0.0, 1.0)};
     
     Axis axis {SCR_WIDTH, SCR_HEIGHT};
+    Floor floor {SCR_WIDTH, SCR_HEIGHT};
     
     // main render loop
     while(!glfwWindowShouldClose(window)){
@@ -44,22 +44,29 @@ int main(){
         
         glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
-        
+//        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
+
+        cloth.proces_input(window);
         cloth.simulate_XPBD(state);
         
         cloth.render(camera);
         axis.render(camera);
+        floor.render(camera);
 
         glfwSwapBuffers(window);
-        //glFlush();
+//        glFlush(); // no framerate max
         glfwPollEvents();
-        //std::cout << state.delta_time << std::endl;
+        std::cout.precision(1);
+        std::cout << std::fixed << 1/state.delta_time << " \t";
+        std::cout.precision(3);
+        std::cout << std::fixed << state.delta_time << "\t";
+        std::cout << cloth.all_tris.size() << std::endl;
     }
 
 
     cloth.free_resources();
     axis.free();
+    floor.free();
     glfwTerminate();
 
     return 0;
