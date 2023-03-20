@@ -21,7 +21,6 @@ class Cloth
 {
 public:
     // physics
-    int iteration_per_frame = 15;
     std::vector<Node> nodes;
     //float damping = 0.9999;
     std::vector<StretchConstraint> s_cs;

@@ -16,6 +16,8 @@ namespace render {
     struct State {
     public:
         
+        int iteration_per_frame = 30;
+        
         unsigned scr_width;
         unsigned scr_height;
         glm::vec3 gravity {0.0, 0.0, -9.81};

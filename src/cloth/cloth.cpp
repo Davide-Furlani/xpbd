@@ -160,7 +160,7 @@ namespace cloth {
         
         for (auto t : up_left_tris){
             s_cs.emplace_back(nodes.at(t.a), nodes.at(t.b));
-            s_cs.emplace_back(nodes.at(t.b), nodes.at(t.c));
+//            s_cs.emplace_back(nodes.at(t.b), nodes.at(t.c));
             s_cs.emplace_back(nodes.at(t.a), nodes.at(t.c));
         }
         
@@ -310,9 +310,9 @@ namespace cloth {
 
     void Cloth::simulate_XPBD(render::State& s) {
         
-        float timestep = (1.0/60.0)/iteration_per_frame; // frame indipendent, la velocità della simulazione è come se fosse costante a 60 frame al secondo, se non riesce a generare 60 frame al secondo la simulazione sembra rallentata
+        float timestep = (1.0/60.0)/s.iteration_per_frame; // frame indipendent, la velocità della simulazione è come se fosse costante a 60 frame al secondo, se non riesce a generare 60 frame al secondo la simulazione sembra rallentata
         //float timestep = (s.delta_time)/iteration_per_frame; // la simulazione dovrebbe avere velocità costante
-        for(int i=0; i< iteration_per_frame; ++i){
+        for(int i=0; i< s.iteration_per_frame; ++i){
             XPBD_predict(timestep, s.gravity);
             XPBD_solve_constraints(timestep, s);
             XPBD_update_velocity(timestep);

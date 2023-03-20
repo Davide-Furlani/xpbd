@@ -22,8 +22,8 @@ struct StretchConstraint
      * Distance between nodes at rest
     */
     float rest_dist;
-    float compliance = 0.0000005; // più piccolo di 0.0000005 comincia a rompersi
-
+//    float compliance = 0.0000005; // più piccolo di 0.0000005 comincia a rompersi
+    float compliance = 0.0;
     StretchConstraint(Node& node1, Node& node2);
     StretchConstraint(Node& node1, Node& node2, float compliance);
     StretchConstraint(Node& node1, Node& node2, float compliance, float rest_distance);
