@@ -21,6 +21,8 @@ class Cloth
 {
 public:
     // physics
+    float node_mass = 1.0;
+    float node_thickness;
     std::vector<Node> nodes;
     //float damping = 0.9999;
     std::vector<StretchConstraint> s_cs;
@@ -72,7 +74,10 @@ public:
     
     void TMP_solve_ground_collisions();
     void simulate_XPBD (render::State& s);
-    void XPBD_predict(float t, glm::vec3 g);
+    void updateHashGrid(render::State& s);
+    
+    void queryAll(render::State& s, float max_travel_distance);
+    void XPBD_predict(float t, glm::vec3 g, float max_velocity);
     void XPBD_solve_constraints(float t, render::State& s);
     void XPBD_update_velocity(float t);
     void XPBD_solve_stretching(float t, render::State& s);

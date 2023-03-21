@@ -12,7 +12,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <gtx/rotate_vector.hpp>
 
-
 namespace render {
     
     Camera::Camera(vec3 pos, vec3 front_v, vec3 up_v) {
@@ -26,7 +25,7 @@ namespace render {
         Camera::max_pitch = 89.0;
         Camera::min_pitch = -89.0;
         Camera::speed = 7;
-        Camera::sensitivity = 0.001;
+        Camera::sensitivity = 0.0035;
     }
 
     Camera::Camera(vec3 pos, vec3 front_v, vec3 up_v, float speed, float sensitivity) {
@@ -68,16 +67,20 @@ namespace render {
     }
 
     void Camera::update_rotation(State& state){
+        
+        if(state.current_time_from_start < 0.5)
+            return;
+        
         yaw = sensitivity * state.delta_mouseX_pos;
         pitch = sensitivity * state.delta_mouseY_pos;
-        
-        if(pitch > max_pitch)            pitch = max_pitch;
+
+        if(pitch > max_pitch)
+            pitch = max_pitch;
         if(pitch < min_pitch)
             pitch = min_pitch;
 
         front_v = normalize(rotate(front_v, pitch, cross(front_v, up_v)));
         front_v = normalize(rotateZ(front_v, -yaw));
-
     }
 }
 

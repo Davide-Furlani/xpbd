@@ -1,6 +1,6 @@
 /**
 * @file
-* @brief Contains the implementation of State class.
+* @brief Contains thhashe implementation of State class.
 * @author Davide Furlani
 * @version 0.1
 * @date January, 2023
@@ -9,11 +9,22 @@
 #include "state.h"
 #include <GLFW/glfw3.h>
 
+#include <utility>
+#include <vector>
+#include <variant>
+#include "node/node.h"
+#include "triangle/triangle.h"
+#include "hashgrid/hashgrid.h"
+
+
+using namespace hashgrid;
 namespace render {
 
     
     
-    State::State(const unsigned int w, const unsigned int h){
+    State::State(const unsigned int w, const unsigned int h, HashGrid g) :grid(std::move(g)){
+        
+        grid_size = g.num_cells;
         
         scr_width = w;
         scr_height = h;
@@ -36,6 +47,10 @@ namespace render {
 
     void State::update(GLFWwindow *window) {
         
+        grid.grid.clear();
+        grid.grid.reserve(grid.num_cells);
+        for(int i=0; i<grid_size; ++i)
+            grid.grid.emplace_back(std::vector<std::variant<cloth::Node*, mesh::Triangle*>>());
         current_time_from_start = glfwGetTime() - start_time;
         
         last_frame_time = current_frame_time;

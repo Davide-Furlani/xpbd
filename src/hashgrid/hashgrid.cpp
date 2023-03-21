@@ -18,7 +18,7 @@ using namespace hashgrid;
 HashGrid::HashGrid(float sp, int nc) {
     spacing = sp;
     num_cells = nc;
-    grid = std::vector<std::vector<std::variant<cloth::Node*, mesh::Triangle*>>>(num_cells);
+    grid.reserve(nc);
 }
 /**
  * date le coordinate INTERE mappate sulla dimensione della hashmap ritorna l'indice della griglia dove è collocato
@@ -32,11 +32,17 @@ int HashGrid::hashCoords(int x, int y, int z) {
     int h = (x * 92837111) ^ (y * 689287499) ^ (z * 283923481);
     return std::abs(h) % num_cells;
 }
-
-void HashGrid::update_grid() {
-
+int HashGrid::intCoord(float c) {
+    return floor(c / spacing);
 }
 
-std::vector<std::variant<cloth::Node *, mesh::Triangle *>> &HashGrid::get_neighbours(cloth::Node &n) {
-    
+int HashGrid::hashIndex(glm::vec3 p) {
+    return hashCoords(
+            intCoord(p.x),
+            intCoord(p.y),
+            intCoord(p.z));
 }
+
+//std::vector<std::variant<cloth::Node *, mesh::Triangle *>> &HashGrid::get_neighbours(cloth::Node &n) {
+//    
+//}

@@ -10,6 +10,9 @@
 #pragma once
 #include <glm.hpp>
 #include <ostream>
+#include <vector>
+#include <variant>
+#include "triangle/triangle.h"
 
 namespace cloth{
 using namespace glm;
@@ -49,6 +52,10 @@ public:
     */
     vec3 prev_vel;
     /**
+     * Module of max velocity
+     */
+     float max_vel;
+    /**
      * Normal of the node (for rendering purposes)
     */
     vec3 n;
@@ -56,6 +63,10 @@ public:
      * UV coordinates (for rendering purposes)
     */
     vec2 uv_c;
+    /**
+     * vector of pointers that contains the neighbour nodes
+     */
+    std::vector<std::vector<std::variant<cloth::Node*, mesh::Triangle*>>*> neighbours;
 
     /**
      * Constructor of node

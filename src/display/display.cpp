@@ -13,8 +13,8 @@
 #include <iostream>
 #include <stb_image.h>
 #include "state/state.h"
-#include "display/camera.h" // TODO camera farà parte della scena
-//#include "display/scene.h"
+#include "display/camera.h"
+
 #include "cloth/cloth.h"
 #include "display/shader.h"
 
@@ -89,7 +89,7 @@ namespace render {
 
         glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
-        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); // cursor settings
+//        glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED); // cursor settings
         
         return window;
     }

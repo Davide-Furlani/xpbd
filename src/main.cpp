@@ -9,9 +9,14 @@
 #include "display/camera.h"
 #include "display/axis.h"
 #include "display/floor.h"
+#include "hashgrid/hashgrid.h"
 
-const unsigned int SCR_WIDTH = 700;
-const unsigned int SCR_HEIGHT = 500;
+const unsigned int SCR_WIDTH = 1000;
+const unsigned int SCR_HEIGHT = 1000;
+
+constexpr unsigned int CLOTH_WIDTH = 40;
+constexpr unsigned int CLOTH_HEIGHT = 120;
+const float PARTICLE_THICKNESS = 0.01;
 
 using namespace glm;
 using namespace render;
@@ -19,15 +24,15 @@ using namespace cloth;
 
 int main(){
 
-
-    render::State state {SCR_WIDTH, SCR_HEIGHT};
+    hashgrid::HashGrid grid {PARTICLE_THICKNESS, CLOTH_WIDTH*CLOTH_HEIGHT};
+    render::State state {SCR_WIDTH, SCR_HEIGHT, grid};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
     set_GL_parameters();
 
-    cloth::Cloth cloth {120, 40, 1.0, 0.01, state};
+    cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, 1.0, PARTICLE_THICKNESS, state};
     
-    render::Camera camera {glm::vec3(4.0, 3.0, 1.0), 
+    render::Camera camera {glm::vec3(4.0, 3.0, 1.3), 
                            glm::vec3(-1.0, -1.0, -0.3),
                            glm::vec3(0.0, 0.0, 1.0)};
     
@@ -56,11 +61,11 @@ int main(){
         glfwSwapBuffers(window);
 //        glFlush(); // no framerate max
         glfwPollEvents();
-        std::cout.precision(1);
-        std::cout << std::fixed << 1/state.delta_time << " \t";
-        std::cout.precision(3);
-        std::cout << std::fixed << state.delta_time << "\t";
-        std::cout << cloth.all_tris.size() << std::endl;
+//        std::cout.precision(1);
+//        std::cout << std::fixed << 1/state.delta_time << " \t";
+//        std::cout.precision(3);
+//        std::cout << std::fixed << state.delta_time << "\t";
+//        std::cout << cloth.all_tris.size() << std::endl;
     }
 
 

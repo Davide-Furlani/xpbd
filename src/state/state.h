@@ -11,17 +11,24 @@
 #include <glad.h>
 #include <GLFW/glfw3.h>
 #include <glm.hpp>
+#include "hashgrid/hashgrid.h"
 
 namespace render {
     struct State {
     public:
         
+        //physics
         int iteration_per_frame = 30;
+        float simulation_step_time = 1.0f/60.0f;
+        glm::vec3 gravity {0.0, 0.0, -9.81};
         
+        hashgrid::HashGrid grid;
+        int grid_size;
+        
+
+        //rendering
         unsigned scr_width;
         unsigned scr_height;
-        glm::vec3 gravity {0.0, 0.0, -9.81};
-        int iteration_per_frame = 30;
         
         double start_time = 0.0;
         double current_time_from_start = 0.0;
@@ -41,7 +48,7 @@ namespace render {
 
         void update(GLFWwindow* window);
         
-        State(const unsigned int w, const unsigned int h);
+        State(const unsigned int w, const unsigned int h, hashgrid::HashGrid g);
         
     };
 }

@@ -19,7 +19,6 @@
 #include "display/display.h"
 #include "state/state.h"
 
-//#include <iostream> // DEBUG
 
 
 
@@ -29,11 +28,11 @@ namespace cloth {
         Cloth::rows = rows;
         Cloth::columns = columns;
         
+        node_thickness = thickness;
         pin1_index = 0;
         pin2_index = columns-1;
         
         float z_constant = 2.0;
-        float mass = 1.0;
         vec3 vel {0.0};
         vec3 normal {0.0, 0.0, 1.0};
         
@@ -43,7 +42,7 @@ namespace cloth {
             for(int j=0; j<columns; ++j){
                 vec3 pos {static_cast<float>(j)/(size*static_cast<float>(columns-1)), static_cast<float>(i)/(size*static_cast<float>(columns-1)), z_constant};
                 vec2 uv_c {static_cast<float>(j)/static_cast<float>(columns-1), static_cast<float>(i)/static_cast<float>(rows-1)};
-                nodes.emplace_back(Node(pos, thickness, mass, vel, normal, uv_c));
+                nodes.emplace_back(Node(pos, node_thickness, node_mass, vel, normal, uv_c));
             }
         }
 
@@ -114,8 +113,8 @@ namespace cloth {
             unpin2();
     }
     void Cloth::unpin1() {
-        nodes.at(pin1_index).m = 1.0;
-        nodes.at(pin1_index).w = 1.0;
+        nodes.at(pin1_index).m = node_mass;
+        nodes.at(pin1_index).w = 1.0/node_mass;
     }
     void Cloth::unpin2() {
         nodes.at(pin2_index).m = 1.0;
@@ -176,11 +175,7 @@ namespace cloth {
         for(int i=columns*(rows-1); i<(rows*columns)-1; ++i){
                 s_cs.emplace_back(nodes.at(i), nodes.at(i+1), false);
         }
-
-
-        std::cout << "fine generazione stretch constraints " << s_cs.size() << std::endl;
     }
-
     void Cloth::generate_bend_constraints() {
         
         if(all_tris.empty())
@@ -257,7 +252,6 @@ namespace cloth {
 
         return v_array;
     }
-
     void Cloth::compute_normals() {
         /** Reset nodes' normal **/
         vec3 normal(0.0, 0.0, 0.0);
@@ -288,7 +282,6 @@ namespace cloth {
             n.n = normalize(n.n);
         }
     }
-    
     void Cloth::render(render::Camera& c) {
         
         compute_normals();
@@ -316,22 +309,46 @@ namespace cloth {
     
     void Cloth::simulate_XPBD(render::State& s) {
         
-        float timestep = (1.0f/60.0f)/s.iteration_per_frame; // frame indipendent, la velocità della simulazione è come se fosse costante a 60 frame al secondo, se non riesce a generare 60 frame al secondo la simulazione sembra rallentata
-        //float timestep = (s.delta_time)/iteration_per_frame; // la simulazione dovrebbe avere velocità costante
+        float timestep = s.simulation_step_time/s.iteration_per_frame; // frame indipendent, la velocità della simulazione è come se fosse costante a 60 frame al secondo, se non riesce a generare 60 frame al secondo la simulazione sembra rallentata
+        float max_velocity = (0.5f * node_thickness) / timestep; // da provare a modificare, più piccolo = meno nodi collidenti = sim più veloce
+        float max_travel_distance = max_velocity * s.simulation_step_time;
+        updateHashGrid(s);
+        queryAll(s, max_travel_distance);
+        
         for(int i=0; i< s.iteration_per_frame; ++i){
-            XPBD_predict(timestep, s.gravity);
+            XPBD_predict(timestep, s.gravity, max_velocity);
             TMP_solve_ground_collisions();
             XPBD_solve_constraints(timestep, s);
             XPBD_update_velocity(timestep);
         }
     }
-    void Cloth::XPBD_predict(float t, glm::vec3 g){
+    
+    void Cloth::updateHashGrid(render::State& s){
+        for(auto& n: nodes){
+            s.grid.grid.at(s.grid.hashIndex(n.pos)).push_back(&n); // popolo la hashgrid coi puntatori ai nodi
+        }
+    }
+
+    
+    
+    
+    
+    void Cloth::queryAll(render::State &s, float max_travel_distance) {
+        for(auto& n: nodes){
+            
+        }
+    }
+    
+    void Cloth::XPBD_predict(float t, glm::vec3 g, float max_velocity){
         /** Nodes **/
         for (auto& n : nodes) {
             if (n.w == 0.0)
                 continue;
                 
             n.vel += g * t;
+            float tmp_vel = sqrt(n.vel.x*n.vel.x + n.vel.y*n.vel.y + n.vel.z*n.vel.z); //forzo la veloità massima
+            if(tmp_vel>max_velocity)                                                   //
+                n.vel *= max_velocity/tmp_vel;                                         //
             n.prev_pos = n.pos;
             n.pos += n.vel * t;
         }
