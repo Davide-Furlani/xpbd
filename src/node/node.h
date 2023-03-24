@@ -32,6 +32,10 @@ public:
     */
     vec3 prev_pos;
     /**
+     * Initial position to calculate the natural distance at rest pos
+     */
+    vec3 nat_pos;
+    /**
      * Thickness of the particle
      */
     float thickness;
@@ -52,10 +56,6 @@ public:
     */
     vec3 prev_vel;
     /**
-     * Module of max velocity
-     */
-     float max_vel;
-    /**
      * Normal of the node (for rendering purposes)
     */
     vec3 n;
@@ -66,7 +66,7 @@ public:
     /**
      * vector of pointers that contains the neighbour nodes
      */
-    std::vector<std::vector<std::variant<cloth::Node*, mesh::Triangle*>>*> neighbours;
+    std::vector<std::variant<cloth::Node*, mesh::Triangle*>> neighbours;
 
     /**
      * Constructor of node

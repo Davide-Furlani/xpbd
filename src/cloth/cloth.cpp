@@ -36,7 +36,6 @@ namespace cloth {
         vec3 vel {0.0};
         vec3 normal {0.0, 0.0, 1.0};
         
-//        std::cout << "creo i nodi" << std::endl;
         size = 1/size;
         for(int i=0; i<rows; ++i){
             for(int j=0; j<columns; ++j){
@@ -46,17 +45,13 @@ namespace cloth {
             }
         }
 
-//        std::cout << "pin" << std::endl;
         pin1(pin1_index);
         pin2(pin2_index);
 
-//        std::cout << "genero i vertici" << std::endl;
         generate_verts();
 
-//        std::cout << "genero gli s_constr" << std::endl;
         generate_stretch_constraints();
         
-//        std::cout << "genero gli s_constr" << std::endl;
         generate_bend_constraints();
         
         // robe per rendering
@@ -308,9 +303,12 @@ namespace cloth {
     }
     
     void Cloth::simulate_XPBD(render::State& s) {
-        
-        float timestep = s.simulation_step_time/s.iteration_per_frame; // frame indipendent, la velocità della simulazione è come se fosse costante a 60 frame al secondo, se non riesce a generare 60 frame al secondo la simulazione sembra rallentata
-        float max_velocity = (0.5f * node_thickness) / timestep; // da provare a modificare, più piccolo = meno nodi collidenti = sim più veloce
+        if(s.current_time_from_start > 3){
+            unpin2();
+            unpin1();
+        }
+        float timestep = s.simulation_step_time/s.iteration_per_frame;
+        float max_velocity = (0.2f * node_thickness) / timestep; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
         float max_travel_distance = max_velocity * s.simulation_step_time;
         updateHashGrid(s);
         queryAll(s, max_travel_distance);
@@ -318,7 +316,8 @@ namespace cloth {
         for(int i=0; i< s.iteration_per_frame; ++i){
             XPBD_predict(timestep, s.gravity, max_velocity);
             TMP_solve_ground_collisions();
-            XPBD_solve_constraints(timestep, s);
+            XPBD_solve_constraints(timestep);
+            HG_solve_collisions();
             XPBD_update_velocity(timestep);
         }
     }
@@ -329,13 +328,34 @@ namespace cloth {
         }
     }
 
-    
-    
-    
-    
     void Cloth::queryAll(render::State &s, float max_travel_distance) {
-        for(auto& n: nodes){
+        float max_dist_2 = max_travel_distance * max_travel_distance;        
+        for(auto& node: nodes){ 
+            int min_x = s.grid.intCoord(node.pos.x - max_travel_distance);
+            int max_x = s.grid.intCoord(node.pos.x + max_travel_distance);
+            int min_y = s.grid.intCoord(node.pos.y - max_travel_distance);
+            int max_y = s.grid.intCoord(node.pos.y + max_travel_distance);
+            int min_z = s.grid.intCoord(node.pos.z - max_travel_distance);
+            int max_z = s.grid.intCoord(node.pos.z + max_travel_distance);
             
+            node.neighbours.clear();
+            
+            for(int x=min_x; x<max_x; ++x)              // qui scorro tutte le celle in cui posso trovare particelle
+                for(int y=min_y; y<max_y; ++y)          // con cui la particella in esame potrebbe collidere
+                    for(int z=min_z; z<max_z; ++z){     // la complessità è cubica nel raggio di possibile collisione (max_travel_distance)
+                        int hashcoor = s.grid.hashCoords(x, y, z);
+                        for (auto node_or_tri : s.grid.grid.at(hashcoor)){
+                            Node** neighbour_pp = std::get_if<Node*>(&node_or_tri);
+                            if(!neighbour_pp)
+                                continue;
+                            if ((*neighbour_pp)->pos == node.pos)
+                                continue;
+                            vec3 dist = node.pos - (*neighbour_pp)->pos;
+                            float dist_2 = (powf(dist.x,2) + powf(dist.y,2) + powf(dist.z,2));
+                            if (dist_2 <=max_dist_2)
+                                node.neighbours.push_back(node_or_tri);
+                        }
+                    }
         }
     }
     
@@ -358,26 +378,26 @@ namespace cloth {
             if (n.w == 0.0)
                 continue;
             if (n.pos.z < 0.5*n.thickness) {
-                float damping = 0.0002;
+                float damping = 0.002;
                 vec3 diff = n.pos - n.prev_pos;
                 n.pos += diff * -damping;
                 n.pos.z = 0.5f * n.thickness;
             }
         }
     }
-    void Cloth::XPBD_solve_constraints(float t, render::State& s){
-        XPBD_solve_stretching(t, s);
+    void Cloth::XPBD_solve_constraints(float t){
+        XPBD_solve_stretching(t);
         XPBD_solve_bending(t);
         
     }
-    void Cloth::XPBD_solve_stretching(float timeStep, render::State& s) {
+    void Cloth::XPBD_solve_stretching(float timeStep) {
         
         for (auto& s_c : s_cs) {
             float alpha = s_c.compliance / timeStep / timeStep;
             if (s_c.nodes.first.w + s_c.nodes.second.w == 0.0)
                 continue;
             vec3 distance = s_c.nodes.first.pos - s_c.nodes.second.pos;
-            float abs_distance = static_cast<float>(sqrt(pow(distance.x,2) + pow(distance.y,2) + pow(distance.z,2)));
+            float abs_distance = sqrtf(powf(distance.x,2) + powf(distance.y,2) + powf(distance.z,2));
             
             if (abs_distance == 0.0)
                 continue;
@@ -401,7 +421,7 @@ namespace cloth {
             if (b_c.nodes.first.w + b_c.nodes.second.w == 0.0)
                 continue;
             vec3 distance = b_c.nodes.first.pos - b_c.nodes.second.pos;
-            float abs_distance = static_cast<float>(sqrt(pow(distance.x,2) + pow(distance.y,2) + pow(distance.z,2)));
+            float abs_distance = sqrtf(powf(distance.x,2) + powf(distance.y,2) + powf(distance.z,2));
             if (abs_distance == 0.0)
                 continue;
             distance *= 1 / abs_distance;
@@ -420,8 +440,57 @@ namespace cloth {
             if (n.w == 0.0)
                 continue;
             n.vel = (n.pos - n.prev_pos) * static_cast<float>(1.0)/t;
-            //n.vel *= damping;
         }
     }
+    
+    void Cloth::HG_solve_collisions(){
+        float thickness_2 = this->node_thickness * this->node_thickness;
+        for(auto& n: nodes) {
+            if (n.w == 0.0)
+                continue;
+            for(auto& neighbour_node_or_tri: n.neighbours){
+                Node** neighbour_pp = std::get_if<Node*>(&neighbour_node_or_tri);
+                if(!neighbour_pp) {
+                    continue;
+                }
+                if((*neighbour_pp)->w == 0.0) {
+                    continue;
+                }
+                
+                vec3 diff = (*neighbour_pp)->pos - n.pos;
+                float dist_2 = diff.x*diff.x + diff.y*diff.y + diff.z*diff.z;
+                
+                if(dist_2 > n.thickness * n.thickness || dist_2 == 0.0) {
+                    continue;
+                }
+                
+                vec3 nat_diff = n.nat_pos - (*neighbour_pp)->nat_pos;
+                float nat_dist_2 = nat_diff.x*nat_diff.x + nat_diff.y*nat_diff.y + nat_diff.z*nat_diff.z;
+                if(dist_2 >= nat_dist_2) {
+                    continue;
+                }
+                
+                float min_dist = sqrtf(thickness_2);
+                if(nat_dist_2 < thickness_2)
+                    min_dist = sqrtf(min_dist);
 
+                float dist = sqrtf(dist_2);
+                vec3 correction = diff * ((min_dist-dist)/dist);
+                n.pos += correction * (-0.5f);
+                (*neighbour_pp)->pos += correction * (0.5f);
+
+                vec3 n1_vel = n.pos - n.prev_pos;
+                vec3 n2_vel = (*neighbour_pp)->pos - (*neighbour_pp)->prev_pos;
+
+                vec3 av_vel = (n1_vel + n2_vel) * 0.5f;
+
+                n1_vel = av_vel - n1_vel;
+                n2_vel = av_vel - n2_vel;
+
+                n.pos += n1_vel * this->self_friction;
+                (*neighbour_pp)->pos += n2_vel * this->self_friction;
+            }
+        }
+    }
+    
 }

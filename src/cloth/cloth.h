@@ -21,10 +21,10 @@ class Cloth
 {
 public:
     // physics
-    float node_mass = 1.0;
+    float node_mass = 1.0f;
     float node_thickness;
     std::vector<Node> nodes;
-    //float damping = 0.9999;
+    float self_friction = 0.2f;
     std::vector<StretchConstraint> s_cs;
     std::vector<BendConstraint> b_cs;
     int pin1_index;
@@ -78,10 +78,12 @@ public:
     
     void queryAll(render::State& s, float max_travel_distance);
     void XPBD_predict(float t, glm::vec3 g, float max_velocity);
-    void XPBD_solve_constraints(float t, render::State& s);
+    void XPBD_solve_constraints(float t);
     void XPBD_update_velocity(float t);
-    void XPBD_solve_stretching(float t, render::State& s);
+    void XPBD_solve_stretching(float t);
     void XPBD_solve_bending(float t);
+    
+    void HG_solve_collisions();
 
     void free_resources();
 };

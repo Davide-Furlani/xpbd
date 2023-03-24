@@ -11,12 +11,12 @@
 #include "display/floor.h"
 #include "hashgrid/hashgrid.h"
 
-const unsigned int SCR_WIDTH = 1000;
-const unsigned int SCR_HEIGHT = 1000;
+const unsigned int SCR_WIDTH = 500;
+const unsigned int SCR_HEIGHT = 500;
 
-constexpr unsigned int CLOTH_WIDTH = 40;
+constexpr unsigned int CLOTH_WIDTH = 50;
 constexpr unsigned int CLOTH_HEIGHT = 120;
-const float PARTICLE_THICKNESS = 0.01;
+const float PARTICLE_THICKNESS = 0.02f;
 
 using namespace glm;
 using namespace render;
@@ -24,7 +24,7 @@ using namespace cloth;
 
 int main(){
 
-    hashgrid::HashGrid grid {PARTICLE_THICKNESS, CLOTH_WIDTH*CLOTH_HEIGHT};
+    hashgrid::HashGrid grid {PARTICLE_THICKNESS, CLOTH_WIDTH*CLOTH_HEIGHT*5};
     render::State state {SCR_WIDTH, SCR_HEIGHT, grid};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
@@ -65,7 +65,7 @@ int main(){
 //        std::cout << std::fixed << 1/state.delta_time << " \t";
 //        std::cout.precision(3);
 //        std::cout << std::fixed << state.delta_time << "\t";
-//        std::cout << cloth.all_tris.size() << std::endl;
+//        std::cout << cloth.all_tris.size() << "\t" << cloth.nodes.size() << std::endl;
     }
 
 
