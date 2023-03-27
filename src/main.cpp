@@ -11,12 +11,13 @@
 #include "display/floor.h"
 #include "hashgrid/hashgrid.h"
 
-const unsigned int SCR_WIDTH = 500;
-const unsigned int SCR_HEIGHT = 500;
+constexpr unsigned int SCR_WIDTH = 800;
+constexpr unsigned int SCR_HEIGHT = 800;
 
-constexpr unsigned int CLOTH_WIDTH = 50;
-constexpr unsigned int CLOTH_HEIGHT = 120;
-const float PARTICLE_THICKNESS = 0.02f;
+constexpr unsigned int CLOTH_WIDTH = 60;
+constexpr unsigned int CLOTH_HEIGHT = 100;
+constexpr float PARTICLE_THICKNESS = 0.02f;
+constexpr float GRID_CELL_SIZE = 0.04f;
 
 using namespace glm;
 using namespace render;
@@ -24,15 +25,15 @@ using namespace cloth;
 
 int main(){
 
-    hashgrid::HashGrid grid {PARTICLE_THICKNESS, CLOTH_WIDTH*CLOTH_HEIGHT*5};
+    hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT*5};
     render::State state {SCR_WIDTH, SCR_HEIGHT, grid};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
     set_GL_parameters();
 
-    cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, 1.0, PARTICLE_THICKNESS, state};
+    cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, 1.2, PARTICLE_THICKNESS, state};
     
-    render::Camera camera {glm::vec3(4.0, 3.0, 1.3), 
+    render::Camera camera {glm::vec3(3.0, 2.0, 1.3), 
                            glm::vec3(-1.0, -1.0, -0.3),
                            glm::vec3(0.0, 0.0, 1.0)};
     
@@ -52,6 +53,13 @@ int main(){
 //        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
 
         cloth.proces_input(window);
+        if(state.current_time_from_start > 5){
+            cloth.unpin2();
+        }
+        if(state.current_time_from_start > 5){
+            cloth.unpin1();
+        }
+        
         cloth.simulate_XPBD(state);
         
         cloth.render(camera);
@@ -61,11 +69,11 @@ int main(){
         glfwSwapBuffers(window);
 //        glFlush(); // no framerate max
         glfwPollEvents();
-//        std::cout.precision(1);
-//        std::cout << std::fixed << 1/state.delta_time << " \t";
-//        std::cout.precision(3);
-//        std::cout << std::fixed << state.delta_time << "\t";
-//        std::cout << cloth.all_tris.size() << "\t" << cloth.nodes.size() << std::endl;
+        std::cout.precision(1);
+        std::cout << std::fixed << 1/state.delta_time << " \t";
+        std::cout.precision(3);
+        std::cout << std::fixed << state.delta_time << "\t";
+        std::cout << cloth.all_tris.size() << "\t" << cloth.nodes.size() << std::endl;
     }
 
 

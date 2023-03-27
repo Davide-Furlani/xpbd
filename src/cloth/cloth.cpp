@@ -175,38 +175,6 @@ namespace cloth {
         
         if(all_tris.empty())
             generate_verts();
-        
-//        std::vector<std::pair<int, int>> edges {};
-//        
-//        int num_tris = low_right_tris.size() + up_left_tris.size();
-//        for (int i=0; i< num_tris; ++i){
-//            int id1 = all_tris.at(i).a;
-//            int id2 = all_tris.at(i).b;
-//            edges.emplace_back(min(id1, id2), max(id1, id2));
-//            id1 = all_tris.at(i).b;
-//            id2 = all_tris.at(i).c;
-//            edges.emplace_back(min(id1, id2), max(id1, id2));
-//            id1 = all_tris.at(i).a;
-//            id2 = all_tris.at(i).c;
-//            edges.emplace_back(min(id1, id2), max(id1, id2));
-//        }
-//
-//        std::sort(edges.begin(), edges.end());
-//        std
-//        
-//        int nr = 0;
-//        while(nr < edges.size()){
-//            auto e0 = edges.at(nr);
-//            nr++;
-//            if(nr<edges.size()){
-//                auto e1 = edges.at(nr);
-//                if(e0.first == e1.first && e0.second == e1.second){
-//                    
-//                }
-//                nr++;
-//            }
-//        }
-//              TODO
 
         for(int i=0; i<rows-1; ++i){
             for(int j=0; j<columns-1; ++j){
@@ -303,12 +271,8 @@ namespace cloth {
     }
     
     void Cloth::simulate_XPBD(render::State& s) {
-        if(s.current_time_from_start > 3){
-            unpin2();
-            unpin1();
-        }
         float timestep = s.simulation_step_time/s.iteration_per_frame;
-        float max_velocity = (0.2f * node_thickness) / timestep; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
+        float max_velocity = (0.5f * node_thickness) / timestep; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
         float max_travel_distance = max_velocity * s.simulation_step_time;
         updateHashGrid(s);
         queryAll(s, max_travel_distance);
@@ -378,7 +342,7 @@ namespace cloth {
             if (n.w == 0.0)
                 continue;
             if (n.pos.z < 0.5*n.thickness) {
-                float damping = 0.002;
+                float damping = 0.02;
                 vec3 diff = n.pos - n.prev_pos;
                 n.pos += diff * -damping;
                 n.pos.z = 0.5f * n.thickness;
