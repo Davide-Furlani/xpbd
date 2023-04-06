@@ -40,6 +40,8 @@ int main(){
     Axis axis {SCR_WIDTH, SCR_HEIGHT};
     Floor floor {SCR_WIDTH, SCR_HEIGHT};
     
+   
+    
     // main render loop
     while(!glfwWindowShouldClose(window)){
 
@@ -69,11 +71,11 @@ int main(){
         glfwSwapBuffers(window);
 //        glFlush(); // no framerate max
         glfwPollEvents();
-        std::cout.precision(1);
-        std::cout << std::fixed << 1/state.delta_time << " \t";
-        std::cout.precision(3);
-        std::cout << std::fixed << state.delta_time << "\t";
-        std::cout << cloth.all_tris.size() << "\t" << cloth.nodes.size() << std::endl;
+//        std::cout.precision(1);
+//        std::cout << std::fixed << 1/state.delta_time << " \t";
+//        std::cout.precision(3);
+//        std::cout << std::fixed << state.delta_time << "\t";
+//        std::cout << cloth.all_tris.size() << "\t" << cloth.nodes.size() << "\n";
     }
 
 
