@@ -10,8 +10,7 @@
 #pragma once
 #include <vector>
 #include "node/node.h"
-#include "constraints/s_constr.h"
-#include "constraints/b_constr.h"
+#include "constraints/constraint.h"
 #include "state/state.h"
 #include "display/shader.h"
 #include "display/camera.h"
@@ -25,8 +24,8 @@ public:
     float node_thickness;
     std::vector<Node> nodes;
     float self_friction = 0.2f;
-    std::vector<StretchConstraint> s_cs;
-    std::vector<BendConstraint> b_cs;
+    std::vector<Constraint> s_cs;
+    std::vector<Constraint> b_cs;
     int pin1_index;
     int pin2_index;
     
@@ -40,6 +39,11 @@ public:
     unsigned VAO, VBO;
     Shader shader {"resources/Shaders/ClothVS.glsl", "resources/Shaders/ClothFS.glsl"};
     unsigned int texture;
+    
+    GLuint ssbo_verts;
+    Shader compute_predict {"resources/gpu_kernels/next_predict_pos.comp"};
+    
+    
     //temporaneo
     int rows;
     int columns;
@@ -54,38 +58,38 @@ public:
     
     Cloth(int rows, int columns, float size, float thickness, render::State& s);
     
+    void generate_stretch_constraints(render::State& s);
+    void generate_bend_constraints(render::State& s);
+    
     void pin1(int index);
     void pin2(int index);
-    
-    void proces_input(GLFWwindow *window);
     void unpin1();
     void unpin2();
     
+    void proces_input(GLFWwindow *window);
+    
     void generate_verts();
-    
     std::vector<float> get_GL_tris();
-    
-    void generate_stretch_constraints();
-    void generate_bend_constraints();
     
     void compute_normals();
     void render(render::Camera& c);
-
+    void free_resources();
     
-    void TMP_solve_ground_collisions();
     void simulate_XPBD (render::State& s);
-    void updateHashGrid(render::State& s);
-    
-    void queryAll(render::State& s, float max_travel_distance);
     void XPBD_predict(float t, glm::vec3 g, float max_velocity);
     void XPBD_solve_constraints(float t);
     void XPBD_update_velocity(float t);
     void XPBD_solve_stretching(float t);
     void XPBD_solve_bending(float t);
     
+    void GPU_predict(float t, glm::vec3 g, float max_velocity);
+
+    void TMP_solve_ground_collisions();
+    
+    void updateHashGrid(render::State& s);
+    void queryAll(render::State& s, float max_travel_distance);
     void HG_solve_collisions();
 
-    void free_resources();
 };
 
 }

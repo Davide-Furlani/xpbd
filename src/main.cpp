@@ -11,11 +11,11 @@
 #include "display/floor.h"
 #include "hashgrid/hashgrid.h"
 
-constexpr unsigned int SCR_WIDTH = 800;
-constexpr unsigned int SCR_HEIGHT = 800;
+constexpr unsigned int SCR_WIDTH = 1500;
+constexpr unsigned int SCR_HEIGHT = 900;
 
-constexpr unsigned int CLOTH_WIDTH = 60;
-constexpr unsigned int CLOTH_HEIGHT = 100;
+constexpr unsigned int CLOTH_WIDTH  = 50;
+constexpr unsigned int CLOTH_HEIGHT = 50;
 constexpr float PARTICLE_THICKNESS = 0.02f;
 constexpr float GRID_CELL_SIZE = 0.04f;
 
@@ -24,7 +24,9 @@ using namespace render;
 using namespace cloth;
 
 int main(){
-
+    
+    std::cout << sizeof(Node) << std::endl;
+    
     hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT*5};
     render::State state {SCR_WIDTH, SCR_HEIGHT, grid};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
@@ -46,7 +48,7 @@ int main(){
     while(!glfwWindowShouldClose(window)){
 
         state.update(window);
-        //std::cout << state.delta_time << std::endl;
+//        std::cout << state.delta_time << std::endl;
         
         processInput(window, state, camera);
         
@@ -55,12 +57,12 @@ int main(){
 //        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
 
         cloth.proces_input(window);
-        if(state.current_time_from_start > 5){
-            cloth.unpin2();
-        }
-        if(state.current_time_from_start > 5){
-            cloth.unpin1();
-        }
+//        if(state.current_time_from_start > 5){
+//            cloth.unpin2();
+//        }
+//        if(state.current_time_from_start > 5){
+//            cloth.unpin1();
+//        }
         
         cloth.simulate_XPBD(state);
         

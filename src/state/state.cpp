@@ -11,9 +11,7 @@
 
 #include <utility>
 #include <vector>
-#include <variant>
 #include "node/node.h"
-#include "triangle/triangle.h"
 #include "hashgrid/hashgrid.h"
 
 
@@ -22,7 +20,7 @@ namespace render {
 
     
     
-    State::State(const unsigned int w, const unsigned int h, HashGrid g) :grid(std::move(g)){
+    State::State(unsigned int w, unsigned int h, HashGrid g) :grid(std::move(g)){
         
         grid_size = g.num_cells;
         
@@ -50,7 +48,7 @@ namespace render {
         grid.grid.clear();
         grid.grid.reserve(grid.num_cells);
         for(int i=0; i<grid_size; ++i)
-            grid.grid.emplace_back(std::vector<std::variant<cloth::Node*, mesh::Triangle*>>());
+            grid.grid.emplace_back(std::vector<cloth::Node*>());
         current_time_from_start = glfwGetTime() - start_time;
         
         last_frame_time = current_frame_time;

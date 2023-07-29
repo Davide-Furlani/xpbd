@@ -9,25 +9,23 @@
 
 #pragma once
 #include <utility>
+#include <vector>
 #include "node/node.h"
 
 namespace cloth{
-struct StretchConstraint
+struct Constraint
 {   
     /**
      * Node pair on which a stretching constraint is set
     */
-    std::pair<Node&, Node&> nodes;
+    std::pair<int, int> nodes;
     /**
      * Distance between nodes at rest
     */
     float rest_dist;
-    float compliance = 0.000005; // più piccolo di 0.0000005 comincia a rompersi
-//    float compliance = 0.0;
-    bool obliquo;
+    float compliance;
+    //bool obliquo;
     
-    StretchConstraint(Node& node1, Node& node2, bool ob);
-
-    friend std::ostream& operator<<(std::ostream& os, const StretchConstraint& s);
+    Constraint(std::vector<Node>& nodes, int node1, int node2, float compliance);
 };
 }

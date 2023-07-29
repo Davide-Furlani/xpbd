@@ -24,7 +24,7 @@ Node::Node(vec3 position, float thickness, float mass, vec3 velocity, vec3 norma
     this->prev_vel  = velocity;
     this->n         = normal;
     this->uv_c      = uv_coordinates;
-    this->neighbours= std::vector<std::variant<Node*, mesh::Triangle*>>();
+    this->neighbours= std::vector<Node*>();
 }
 
 
@@ -35,18 +35,5 @@ float Node::distance(Node& node){
     float z = pos.z - node.pos.z;
     
     return sqrt(x*x + y*y + z*z);
-}
-
-std::ostream& operator<<(std::ostream& os, const Node& node) {
-    os  << "[physics]" << std::endl
-        << "  position: \t  [" << node.prev_pos.x << ", " << node.prev_pos.y << ", " << node.prev_pos.z << "] -> ["
-        << node.pos.x << ", " << node.pos.y << ", " << node.pos.z << "]" << std::endl
-        << "  mass: \t  " << node.m << "\t(inverse mass: " << node.w << ")" << std::endl
-        << "  velocity: \t  [" << node.prev_vel.x << ", " << node.prev_vel.y << ", " << node.prev_vel.z << "] -> ["
-        << node.vel.x << ", " << node.vel.y << ", " << node.vel.z << "]" << std::endl
-        << "[rendering]" << std::endl
-        << "  normals: \t  [" << node.n.x << ", " << node.n.y << ", " << node.n.z << "]" << std::endl
-        << "  uv coordinates: [" << node.uv_c.x << ", " << node.uv_c.y << "]";
-    return os;
 }
 }

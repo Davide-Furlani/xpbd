@@ -1,0 +1,45 @@
+#version 460 core
+
+layout (local_size_x = 1) in; //TODO local_size multiplo di 32
+
+struct Node {
+    vec3 pos;
+    vec3 prev_pos;
+    vec3 nat_pos;
+    vec3 vel;
+    vec3 prev_vel;
+    vec3 n;
+    vec2 uv_c;
+    float thickness;
+    float m;
+    float w;
+    int neighbors_vector_do_not_use0;
+    int neighbors_vector_do_not_use1;
+    int neighbors_vector_do_not_use2;
+    int neighbors_vector_do_not_use3;
+    int neighbors_vector_do_not_use4;
+    int neighbors_vector_do_not_use5;
+};
+
+layout(std430, binding = 0) buffer nodesSSBO {
+    Node nodes[];
+};
+
+uniform vec3 g;
+uniform float t;
+uniform float max_velocity;
+
+void main(){
+
+    uint id = gl_GlobalInvocationID.x;
+
+    if(nodes[id].w != 0.0) {
+        nodes[id].vel += g * t;
+        float tmp_vel = sqrt(nodes[id].vel.x*nodes[id].vel.x + nodes[id].vel.y*nodes[id].vel.y + nodes[id].vel.z*nodes[id].vel.z); //forzo la velocità massima
+        if(tmp_vel>max_velocity)                                                   //
+        nodes[id].vel *= max_velocity/tmp_vel;                                             //
+        nodes[id].prev_pos = nodes[id].pos;
+        nodes[id].pos += nodes[id].vel * t;
+    }
+
+}

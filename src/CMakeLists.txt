@@ -4,21 +4,11 @@ file(COPY ${CMAKE_SOURCE_DIR}/resources DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
 
 
-# triangle library
-add_library(triangle STATIC
-        triangle/triangle.cpp)
-target_include_directories(triangle PRIVATE ${CMAKE_SOURCE_DIR}/src)
-target_include_directories(triangle PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)
-
-
-
 # node library
 add_library(node STATIC
         node/node.cpp)
 target_include_directories(node PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(node PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)
-target_link_libraries(node PRIVATE
-        triangle)
 
 
 
@@ -28,16 +18,14 @@ add_library(hashgrid STATIC
 target_include_directories(hashgrid PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(hashgrid PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)
 target_link_libraries(hashgrid PRIVATE 
-        node
-        triangle)
+        node)
 
 
 
 
-# stretching constraints library
+# constraints library
 add_library(constr STATIC
-        constraints/s_constr.cpp
-        constraints/b_constr.cpp
+        constraints/constraint.cpp
         )
 target_include_directories(constr PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(constr PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)

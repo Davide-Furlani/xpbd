@@ -10,10 +10,8 @@
 #pragma once
 #include <vector>
 #include <array>
-#include <variant>
 #include <cmath>
 #include "node/node.h"
-#include "triangle/triangle.h"
 #include "glm.hpp"
 
 namespace hashgrid {
@@ -22,8 +20,7 @@ namespace hashgrid {
     public:
         float spacing;
         int num_cells;
-//        std::array<std::vector<std::variant<cloth::Node*, mesh::Triangle*>>, N> grid;
-        std::vector<std::vector<std::variant<cloth::Node*, mesh::Triangle*>>> grid;
+        std::vector<std::vector<cloth::Node*>> grid;
         
         HashGrid(float spacing, int num_cells);
         
@@ -33,6 +30,5 @@ namespace hashgrid {
         
         void update_grid();
 
-        std::vector<std::variant<cloth::Node*, mesh::Triangle*>>& get_neighbours(cloth::Node& n);
     };
 }

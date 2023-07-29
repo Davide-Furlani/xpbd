@@ -11,8 +11,6 @@
 #include <glm.hpp>
 #include <ostream>
 #include <vector>
-#include <variant>
-#include "triangle/triangle.h"
 
 namespace cloth{
 using namespace glm;
@@ -28,21 +26,21 @@ public:
     */
     vec3 pos;
     /**
-     * Previous position of the node in 3d space
-    */
-    vec3 prev_pos;
-    /**
-     * Initial position to calculate the natural distance at rest pos
-     */
-    vec3 nat_pos;
-    /**
      * Thickness of the particle
      */
     float thickness;
     /**
+     * Previous position of the node in 3d space
+    */
+    vec3 prev_pos;
+    /**
      * Mass of the node
     */
     float m;
+    /**
+     * Initial position to calculate the natural distance at rest pos
+     */
+    vec3 nat_pos;
     /**
      * Inverse of mass (to make formulas more readable)
     */
@@ -51,14 +49,20 @@ public:
      * Velocity of the node (speed and direction of movement)
     */
     vec3 vel;
+private: float padding_vel_w = 0.0;
+public:
     /**
      * Previous velocity
     */
     vec3 prev_vel;
+private: float padding_prev_vel_w = 0.0;
+public:
     /**
      * Normal of the node (for rendering purposes)
     */
     vec3 n;
+private: float padding_n_w = 0.0;
+public:
     /**
      * UV coordinates (for rendering purposes)
     */
@@ -66,7 +70,7 @@ public:
     /**
      * vector of pointers that contains the neighbour nodes
      */
-    std::vector<std::variant<cloth::Node*, mesh::Triangle*>> neighbours;
+    std::vector<cloth::Node*> neighbours;
 
     /**
      * Constructor of node
@@ -90,13 +94,5 @@ public:
      * @returns distance
      */
     float distance(Node& node);
-
-    /**
-     * Stream operator
-     * @param os output stream
-     * @param node node to send to stream
-     * @return stream
-     */
-    friend std::ostream& operator<<(std::ostream& os, const Node& node);
 };
 }

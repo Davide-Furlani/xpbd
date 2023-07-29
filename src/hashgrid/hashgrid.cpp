@@ -8,8 +8,6 @@
  */
 
 #include "hashgrid.h"
-#include <vector>
-#include <variant>
 #include <cmath>
 #include "glm.hpp"
 
@@ -43,6 +41,3 @@ int HashGrid::hashIndex(glm::vec3 p) {
             intCoord(p.z));
 }
 
-//std::vector<std::variant<cloth::Node *, mesh::Triangle *>> &HashGrid::get_neighbours(cloth::Node &n) {
-//    
-//}
