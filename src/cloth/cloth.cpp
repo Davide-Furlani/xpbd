@@ -243,6 +243,10 @@ namespace cloth {
                 solve_type = JACOBI;
                 std::cout << "Jacobi" << std::endl;
         }
+        if(glfwGetKey(window, GLFW_KEY_H) == GLFW_PRESS){
+            solve_type = HYBRID;
+            std::cout << "Hybrid" << std::endl;
+        }
     }
 
     void Cloth::generate_verts() {
@@ -372,7 +376,7 @@ namespace cloth {
 
     void Cloth::CPU_SIM(render::State& s, hashgrid::HashGrid& grid){
 
-        double start = glfwGetTime();
+//        double start = glfwGetTime();
 
         float time_step = s.simulation_step_time/s.iteration_per_frame;
         float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
@@ -387,12 +391,12 @@ namespace cloth {
 //            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
             XPBD_update_velocity(time_step);
         }
-        std::cout << "sim: " << glfwGetTime()-start << " - ";
+//        std::cout << "sim: " << glfwGetTime()-start << " - ";
     }
     
     void Cloth::GPU_SIM(render::State& s, hashgrid::HashGrid& grid){
         
-        double start = glfwGetTime();
+//        double start = glfwGetTime();
 
         float time_step = s.simulation_step_time/s.iteration_per_frame;
         float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
@@ -469,7 +473,7 @@ namespace cloth {
 //        std::cout << "calc: " << glfwGetTime()-start;
 //        start = glfwGetTime();
 //        std::cout << " - retr: " << glfwGetTime() - start << " - ";
-        std::cout << "sim: " << glfwGetTime()-start << " - ";
+//        std::cout << "sim: " << glfwGetTime()-start << " - ";
     }
     
     void Cloth::GPU_send_data(){
@@ -483,8 +487,6 @@ namespace cloth {
         glGetNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
         int franco = 0;
     }
-    
-    
     
     void Cloth::XPBD_predict(float t, glm::vec3 g, float max_velocity){
         /** Nodes **/
@@ -611,7 +613,7 @@ namespace cloth {
 
     void Cloth::GPU_XPBD_add_jacobi_correction(){
         float magic_number = 0.2;
-        this->compute_solve_jacobi_constraints.setFloat("magicNumber", magic_number);
+        this->compute_jacobi_add_correction.setFloat("magic_number", magic_number);
         
         this->compute_jacobi_add_correction.use();
         glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);

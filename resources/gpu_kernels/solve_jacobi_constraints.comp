@@ -16,9 +16,9 @@ struct Node {
     float m;
     vec3 nat_pos;
     float w;
-    vec3 vel;
-    vec3 prev_vel;
-    vec3 n;
+    vec4 vel;
+    vec4 prev_vel;
+    vec4 n;
     vec3 corr;
     vec2 uv_c;
     Vec_pointer neighbors_vector_do_not_use;
@@ -55,7 +55,6 @@ void main(){
     if ((nodes[a_node].w + nodes[b_node].w == 0.0) || abs_distance == 0.0)
     return;
 
-//    distance = distance * (1 / abs_distance);
     distance = normalize(distance);
 
     float rest_len = constr[id].rest_dist;
@@ -71,8 +70,5 @@ void main(){
     atomicAdd(nodes[b_node].corr.x, (distance*second_corr).x);
     atomicAdd(nodes[b_node].corr.y, (distance*second_corr).y);
     atomicAdd(nodes[b_node].corr.z, (distance*second_corr).z);
-
-//    nodes[a_node].pos += distance * first_corr;
-//    nodes[b_node].pos += distance * second_corr;
 
 }

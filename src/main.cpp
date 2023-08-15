@@ -14,8 +14,8 @@
 constexpr unsigned int SCR_WIDTH = 750;
 constexpr unsigned int SCR_HEIGHT = 450;
 
-constexpr unsigned int CLOTH_WIDTH  = 512;
-constexpr unsigned int CLOTH_HEIGHT = 512;
+constexpr unsigned int CLOTH_WIDTH  = 128;
+constexpr unsigned int CLOTH_HEIGHT = 128;
 constexpr float PARTICLE_THICKNESS = 0.02f;
 constexpr float GRID_CELL_SIZE = 2*PARTICLE_THICKNESS;
 
@@ -51,7 +51,7 @@ int main(){
     // main render loop
     while(!glfwWindowShouldClose(window)){
         state.update(window);
-        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
+//        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
         
         processInput(window, state, camera);
         
