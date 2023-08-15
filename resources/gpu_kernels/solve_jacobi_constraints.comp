@@ -1,0 +1,78 @@
+#version 460 core
+#extension GL_NV_shader_atomic_float : enable
+
+layout (local_size_x = 32) in;
+
+struct Vec_pointer {
+    double do_not_use_0;
+    double do_not_use_1;
+    double do_not_use_2;
+};
+
+struct Node {
+    vec3 pos;
+    float thickness;
+    vec3 prev_pos;
+    float m;
+    vec3 nat_pos;
+    float w;
+    vec3 vel;
+    vec3 prev_vel;
+    vec3 n;
+    vec3 corr;
+    vec2 uv_c;
+    Vec_pointer neighbors_vector_do_not_use;
+};
+
+struct Constraint {
+    int a_node;
+    int b_node;
+    float rest_dist;
+    float compliance;
+};
+
+layout(std430, binding = 0) buffer nodesSSBO {
+    Node nodes[];
+};
+layout(std430, binding = 2) buffer constraintsSSBO {
+    Constraint constr[];
+};
+
+uniform float time_step;
+uniform int first_constr;
+
+void main(){
+
+    uint id = gl_GlobalInvocationID.x + first_constr;
+    
+    int a_node = constr[id].a_node;
+    int b_node = constr[id].b_node;
+
+    float alpha = constr[id].compliance / time_step / time_step;
+    vec3 distance = nodes[a_node].pos - nodes[b_node].pos;
+    float abs_distance = sqrt(pow(distance.x,2) + pow(distance.y,2) + pow(distance.z,2));
+
+    if ((nodes[a_node].w + nodes[b_node].w == 0.0) || abs_distance == 0.0)
+    return;
+
+//    distance = distance * (1 / abs_distance);
+    distance = normalize(distance);
+
+    float rest_len = constr[id].rest_dist;
+    float error = abs_distance - rest_len;
+    float correction = -error / (nodes[a_node].w + nodes[b_node].w + alpha);
+
+    float first_corr = correction * nodes[a_node].w;
+    float second_corr = -correction * nodes[b_node].w;
+    
+    atomicAdd(nodes[a_node].corr.x, (distance*first_corr).x);
+    atomicAdd(nodes[a_node].corr.y, (distance*first_corr).y);
+    atomicAdd(nodes[a_node].corr.z, (distance*first_corr).z);
+    atomicAdd(nodes[b_node].corr.x, (distance*second_corr).x);
+    atomicAdd(nodes[b_node].corr.y, (distance*second_corr).y);
+    atomicAdd(nodes[b_node].corr.z, (distance*second_corr).z);
+
+//    nodes[a_node].pos += distance * first_corr;
+//    nodes[b_node].pos += distance * second_corr;
+
+}

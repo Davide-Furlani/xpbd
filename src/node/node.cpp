@@ -17,6 +17,7 @@ Node::Node(vec3 position, float thickness, float mass, vec3 velocity, vec3 norma
     this->pos       = position;
     this->prev_pos  = position;
     this->nat_pos   = position;
+    this->corr      = vec3(0.0, 0.0, 0.0);
     this->thickness = thickness;
     this->m         = mass;
     this->w         = 1.0f / mass;
@@ -24,7 +25,7 @@ Node::Node(vec3 position, float thickness, float mass, vec3 velocity, vec3 norma
     this->prev_vel  = velocity;
     this->n         = normal;
     this->uv_c      = uv_coordinates;
-    this->neighbours= std::vector<Node*>();
+//    this->neighbours= std::vector<Node*>();
 }
 
 

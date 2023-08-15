@@ -17,8 +17,6 @@ add_library(hashgrid STATIC
         hashgrid/hashgrid.cpp)
 target_include_directories(hashgrid PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(hashgrid PRIVATE ${CMAKE_SOURCE_DIR}/third_party/glm)
-target_link_libraries(hashgrid PRIVATE 
-        node)
 
 
 
@@ -43,10 +41,7 @@ target_include_directories(state PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/glfw-3.3.8
         ${CMAKE_SOURCE_DIR}/third_party/glm
         )
-target_link_libraries(state PRIVATE
-        glfw
-        hashgrid
-        )
+target_link_libraries(state PRIVATE glfw)
 
 
 
@@ -79,6 +74,7 @@ target_include_directories(cloth PRIVATE
 target_link_libraries(cloth PRIVATE 
         constr 
         state
+        hashgrid
         display)
 
 

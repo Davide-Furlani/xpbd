@@ -10,20 +10,13 @@
 #include <GLFW/glfw3.h>
 
 #include <utility>
-#include <vector>
-#include "node/node.h"
-#include "hashgrid/hashgrid.h"
 
-
-using namespace hashgrid;
 namespace render {
 
     
     
-    State::State(unsigned int w, unsigned int h, HashGrid g) :grid(std::move(g)){
-        
-        grid_size = g.num_cells;
-        
+    State::State(unsigned int w, unsigned int h){
+                
         scr_width = w;
         scr_height = h;
         
@@ -44,11 +37,7 @@ namespace render {
     }
 
     void State::update(GLFWwindow *window) {
-        
-        grid.grid.clear();
-        grid.grid.reserve(grid.num_cells);
-        for(int i=0; i<grid_size; ++i)
-            grid.grid.emplace_back(std::vector<cloth::Node*>());
+       
         current_time_from_start = glfwGetTime() - start_time;
         
         last_frame_time = current_frame_time;

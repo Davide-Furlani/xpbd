@@ -18,17 +18,11 @@ namespace render {
     public:
         
         //physics
-        int iteration_per_frame = 25;
+        int iteration_per_frame = 30;
         float simulation_step_time = 1.0f/60.0f;
         glm::vec3 gravity {0.0, 0.0, -9.81};
         
-        float stretching_compliance = 0.0f;
-        float bending_compliance = 0.03f;
         
-        hashgrid::HashGrid grid;
-        int grid_size;
-        
-
         //rendering
         unsigned scr_width;
         unsigned scr_height;
@@ -51,7 +45,7 @@ namespace render {
 
         void update(GLFWwindow* window);
         
-        State(unsigned int w, unsigned int h, hashgrid::HashGrid g);
+        State(unsigned int w, unsigned int h);
         
     };
 }

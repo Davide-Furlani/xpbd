@@ -14,17 +14,12 @@
 
 namespace cloth{
 struct Constraint
-{   
-    /**
-     * Node pair on which a stretching constraint is set
-    */
-    std::pair<int, int> nodes;
-    /**
-     * Distance between nodes at rest
-    */
+{
+    int a_node;
+    int b_node;
+    
     float rest_dist;
     float compliance;
-    //bool obliquo;
     
     Constraint(std::vector<Node>& nodes, int node1, int node2, float compliance);
 };

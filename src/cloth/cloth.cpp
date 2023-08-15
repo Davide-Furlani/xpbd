@@ -19,6 +19,15 @@
 #include "display/display.h"
 #include "state/state.h"
 
+#define N_SSBO 0
+#define CC_SSBO 1
+#define JC_SSBO 2
+
+#define COLORING 0
+#define JACOBI 1
+#define HYBRID 2
+
+int solve_type = JACOBI;
 
 namespace cloth {
     
@@ -30,7 +39,7 @@ namespace cloth {
         pin1_index = 0;
         pin2_index = columns-1;
         
-        float z_constant = 2.0;
+        float z_constant = 3.0;
         vec3 vel {0.0};
         vec3 normal {0.0, 0.0, 1.0};
         
@@ -48,11 +57,11 @@ namespace cloth {
 
         generate_verts();
 
-        generate_stretch_constraints(s);
+        generate_constraints(s);
         
-        generate_bend_constraints(s);
+        find_max_node_cardinality();
         
-        // robe per rendering
+        // dati per rendering
 
         std::vector<float> cloth_verts_data = get_GL_tris();
         
@@ -77,64 +86,131 @@ namespace cloth {
         std::filesystem::path texture_p {"resources/Textures/tex1.jpg"};
         texture = render::load_textures(texture_p);
 
-        shader.use();
+        this->cloth_shader.use();
 
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)s.scr_width / (float)s.scr_height, 0.1f, 100.0f);
-        shader.setMat4("uniProjMatrix", projection);
+        this->cloth_shader.setMat4("uniProjMatrix", projection);
 
-        shader.setInt("uniTex", 0);
-        shader.setVec3("uniLightPos", glm::vec3(0.0, 0.0, 1.0));
-        shader.setVec3("uniLightColor", glm::vec3(1.0, 1.0, 1.0));
+        this->cloth_shader.setInt("uniTex", 0);
+        this->cloth_shader.setVec3("uniLightPos", glm::vec3(0.0, 0.0, 1.0));
+        this->cloth_shader.setVec3("uniLightColor", glm::vec3(1.0, 1.0, 1.0));
         
-        
-        glGenBuffers(1, &(this->ssbo_verts));
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_verts);
+        // buffer per compute shaders
+        // nodi
+        glGenBuffers(1, &(this->ssbo_nodes));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_nodes);
         glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Node)*this->nodes.size(), this->nodes.data(), GL_DYNAMIC_READ);
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, this->ssbo_verts);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, N_SSBO, this->ssbo_nodes);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         
+        // coloring constraint
+        glGenBuffers(1, &(this->ssbo_cconstrs));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_cconstrs);
+        std::vector<Constraint> sets_unrolled = {};
+        for(auto set : this->constr_sets){
+            for(auto c : set){
+                sets_unrolled.push_back(c);
+            }
+        }
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Constraint)*sets_unrolled.size(), sets_unrolled.data(), GL_STATIC_READ);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, CC_SSBO, this->ssbo_cconstrs);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        
+//        std::cout << this->constr_sets.size() << ", " << sets_unrolled.size() << std::endl;
+
+        // jacobi constraints
+        glGenBuffers(1, &(this->ssbo_jconstrs));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_jconstrs);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Constraint)*this->constraints.size(), this->constraints.data(), GL_STATIC_READ);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, JC_SSBO, this->ssbo_jconstrs);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        
+        
+    }
+    
+    void Cloth::generate_constraints(render::State& s){
+        generate_stretch_constraints(s);
+        generate_bend_constraints(s);
+        constraints_coloring();
     }
     
     void Cloth::generate_stretch_constraints(render::State& s) {
 
-        if(up_left_tris.empty())
-            generate_verts();
-
         for (auto t : up_left_tris){
-            s_cs.emplace_back(nodes, t.a, t.b, s.stretching_compliance);
-//                s_cs.emplace_back(nodes.at(t.b), nodes.at(t.c)); // questo mi crea i constraints oblicui e mi rompe tutto
-            s_cs.emplace_back(nodes, t.a, t.c, s.stretching_compliance);
+            this->constraints.emplace_back(nodes, t.a, t.b, this->stretching_compliance);
+//            this->constraints.emplace_back(nodes, t.b, t.c, s.stretching_compliance); // questo mi crea i constraints oblicui e mi rompe tutto
+            this->constraints.emplace_back(nodes, t.a, t.c, this->stretching_compliance);
         }
 
         for(int i=columns-1; i<columns*(rows-1); i+=columns){
-            s_cs.emplace_back(nodes, i, i+columns, s.stretching_compliance);
+            this->constraints.emplace_back(nodes, i, i+columns, this->stretching_compliance);
         }
         for(int i=columns*(rows-1); i<(rows*columns)-1; ++i){
-            s_cs.emplace_back(nodes, i, i+1, s.stretching_compliance);
+            this->constraints.emplace_back(nodes, i, i+1, this->stretching_compliance);
         }
     }
+    
     void Cloth::generate_bend_constraints(render::State& s) {
-
-        if(all_tris.empty())
-            generate_verts();
 
         for(int i=0; i<rows-1; ++i){
             for(int j=0; j<columns-1; ++j){
-                b_cs.emplace_back(nodes, i*columns+j, (i*columns+j)+(columns+1), s.bending_compliance);
+                this->constraints.emplace_back(nodes, i*columns+j, (i*columns+j)+(columns+1), this->bending_compliance);
             }
         }
         for(int i=1; i<rows; ++i){
             for(int j=0; j<columns-2; ++j){
-                b_cs.emplace_back(nodes, i*columns+j, (i*columns+j)-(columns-2), s.bending_compliance);
+                this->constraints.emplace_back(nodes, i*columns+j, (i*columns+j)-(columns-2), this->bending_compliance);
             }
         }
         for(int i=0; i<rows-2; ++i){
             for(int j=1; j<columns; ++j){
-                b_cs.emplace_back(nodes, i*columns+j, (i*columns+j)+(2*columns-1), s.bending_compliance);
+                this->constraints.emplace_back(nodes, i*columns+j, (i*columns+j)+(2*columns-1), this->bending_compliance);
             }
         }
     }
+    
+    void Cloth::constraints_coloring(){
+                
+        std::vector<bool> node_marks(this->nodes.size(), false);
+        std::vector<bool> constr_marks(this->constraints.size(), false);
+        
+        
+        while(std::find(constr_marks.begin(), constr_marks.end(), false) != constr_marks.end()) {
+            std::vector<Constraint> set;
+            for (int i = 0; i < node_marks.size(); i++) {
+                node_marks.at(i) = false;
+            }
+            for (int i=0; i<this->constraints.size(); i++) {
+                if(constr_marks.at(i) == true)
+                    continue;
+                if (node_marks.at(this->constraints.at(i).a_node) == false && node_marks.at(this->constraints.at(i).b_node) == false){
+                    set.push_back(this->constraints.at(i));
+                    constr_marks.at(i) = true;
+                    node_marks.at(this->constraints.at(i).a_node) = true;
+                    node_marks.at(this->constraints.at(i).b_node) = true;
+                }
+            }
+            this->constr_sets.push_back(set);
+        }        
+    }
 
+    void Cloth::find_max_node_cardinality(){
+
+        std::vector<int> node_cardinalities(this->nodes.size());
+        
+        for(auto &c : this->constraints) {
+            node_cardinalities.at(c.a_node)++;
+            node_cardinalities.at(c.b_node)++;
+        }
+
+        this->max_node_cardinality = 0;
+        for(auto n : node_cardinalities){
+            if (n > this->max_node_cardinality)
+                this->max_node_cardinality = n;
+        }
+                
+    }
+    
     void Cloth::pin1(int index) {
         nodes.at(pin1_index).m = std::numeric_limits<float>::infinity();
         nodes.at(pin1_index).w = 0.0;
@@ -152,13 +228,21 @@ namespace cloth {
     void Cloth::unpin2() {
         nodes.at(pin2_index).m = 1.0;
         nodes.at(pin2_index).w = 1.0;
-    }
+    }    
 
     void Cloth::proces_input(GLFWwindow *window){
         if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
             unpin1();
         if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
             unpin2();
+        if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS){
+                solve_type = COLORING;
+                std::cout << "Coloring" << std::endl;
+        }
+        if(glfwGetKey(window, GLFW_KEY_J) == GLFW_PRESS){
+                solve_type = JACOBI;
+                std::cout << "Jacobi" << std::endl;
+        }
     }
 
     void Cloth::generate_verts() {
@@ -197,13 +281,10 @@ namespace cloth {
             verts.emplace_back(t.c);
         }
     }
+    
     std::vector<float> Cloth::get_GL_tris() {
         std::vector<float> v_array {};
-        
-        if(verts.empty())
-            generate_verts();
-            
-            
+          
         for(auto i : verts){
             Node& n = nodes.at(i);
             v_array.emplace_back(n.pos.x);
@@ -216,7 +297,6 @@ namespace cloth {
             v_array.emplace_back(n.uv_c.y);
 
         }
-
         return v_array;
     }
     
@@ -250,6 +330,7 @@ namespace cloth {
             n.n = normalize(n.n);
         }
     }
+    
     void Cloth::render(render::Camera& c) {
         
         compute_normals();
@@ -258,40 +339,153 @@ namespace cloth {
         glBufferData(GL_ARRAY_BUFFER, cloth_verts_data.size() * sizeof(float), &cloth_verts_data.front(), GL_DYNAMIC_DRAW);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture);
-        shader.use();
+        this->cloth_shader.use();
         mat4 view = lookAt(c.pos, c.pos + c.front_v, c.up_v);
-        shader.setMat4("uniViewMatrix", view);
+        this->cloth_shader.setMat4("uniViewMatrix", view);
         glBindVertexArray(VAO);
 
         mat4 model = mat4(1.0f);
-        shader.setMat4("uniModelMatrix", model);
+        this->cloth_shader.setMat4("uniModelMatrix", model);
         glDrawArrays(GL_TRIANGLES, 0, cloth_verts_data.size()/8.0);
         
     }
+    
     void Cloth::free_resources() {
         glDeleteVertexArrays(1, &VAO);
         glDeleteBuffers(1, &VBO);
-        glDeleteBuffers(1, &ssbo_verts);
-        shader.destroy();
-        compute_predict.destroy();
+        glDeleteBuffers(1, &ssbo_nodes);
+        glDeleteBuffers(1, &ssbo_cconstrs);
+        glDeleteBuffers(1, &ssbo_jconstrs);
+        this->cloth_shader.destroy();
+        this->compute_predict.destroy();
+        this->TMP_compute_ground_collisions.destroy();
+        this->compute_solve_coloring_constraints.destroy();
+        this->compute_solve_jacobi_constraints.destroy();
+        this->compute_jacobi_add_correction.destroy();
+        this->compute_update_velocities.destroy();
     }
     
-    void Cloth::simulate_XPBD(render::State& s) {
-        float timestep = s.simulation_step_time/s.iteration_per_frame;
-        float max_velocity = (0.5f * node_thickness) / timestep; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
-        float max_travel_distance = max_velocity * s.simulation_step_time;
+    void Cloth::simulate_XPBD(render::State& s, hashgrid::HashGrid& grid) {
+//        CPU_SIM(s, grid);
+        GPU_SIM(s, grid);
+    }
+
+    void Cloth::CPU_SIM(render::State& s, hashgrid::HashGrid& grid){
+
+        double start = glfwGetTime();
+
+        float time_step = s.simulation_step_time/s.iteration_per_frame;
+        float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
+//        float max_travel_distance = max_velocity * s.simulation_step_time;
 //        updateHashGrid(s);
 //        queryAll(s, max_travel_distance);
-        
+
         for(int i=0; i< s.iteration_per_frame; ++i){
-//            XPBD_predict(timestep, s.gravity, max_velocity);
-            GPU_predict(timestep, s.gravity, max_velocity);
-            TMP_solve_ground_collisions();
-            XPBD_solve_constraints(timestep);
-            HG_solve_collisions();
-            XPBD_update_velocity(timestep);
+            XPBD_predict(time_step, s.gravity, max_velocity);
+            XPBD_solve_ground_collisions();
+            XPBD_solve_constraints(time_step);
+//            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
+            XPBD_update_velocity(time_step);
         }
+        std::cout << "sim: " << glfwGetTime()-start << " - ";
     }
+    
+    void Cloth::GPU_SIM(render::State& s, hashgrid::HashGrid& grid){
+        
+        double start = glfwGetTime();
+
+        float time_step = s.simulation_step_time/s.iteration_per_frame;
+        float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
+//        float max_travel_distance = max_velocity * s.simulation_step_time;
+//        updateHashGrid(s);
+//        queryAll(s, max_travel_distance);
+
+
+
+//        std::vector<double> predict_time(s.iteration_per_frame);
+//        std::vector<double> ground_collision_time(s.iteration_per_frame);
+//        std::vector<double> constraint_solve_time(s.iteration_per_frame);
+//        std::vector<double> update_vel_time(s.iteration_per_frame);
+//        start = glfwGetTime();
+        GPU_send_data();
+//        glFinish();
+//        std::cout << "send: " << glfwGetTime() - start << " - ";
+
+        for(int i=0; i< s.iteration_per_frame; ++i){
+
+//            start = glfwGetTime();
+            GPU_XPBD_predict(time_step, s.gravity, max_velocity);
+//            glFinish();
+//            predict_time[i] = glfwGetTime()-start;
+//            start = glfwGetTime();
+            GPU_solve_ground_collisions();
+//            glFinish();
+//            ground_collision_time[i] = glfwGetTime()-start;
+//            start = glfwGetTime();
+            if(solve_type == COLORING) {
+                GPU_XPBD_solve_constraints_coloring(time_step, 0);
+            }else if(solve_type == JACOBI) {
+                GPU_XPBD_solve_constraints_jacobi(time_step, 0);
+                GPU_XPBD_add_jacobi_correction();
+            }else if (solve_type == HYBRID) {
+                GPU_XPBD_solve_constraints_coloring(time_step, 4);
+                GPU_XPBD_solve_constraints_jacobi(time_step, 4);
+                GPU_XPBD_add_jacobi_correction();
+            }
+//            glFinish();
+//            constraint_solve_time[i] = glfwGetTime()-start;
+//            start = glfwGetTime();
+//            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
+            GPU_XPBD_update_velocity(time_step);
+//            GPU_retrieve_data();
+//            glFinish();
+//            update_vel_time[i] = glfwGetTime()-start;
+        }
+
+        GPU_retrieve_data();
+//        double predict_sum =0;
+//        for(auto v : predict_time)
+//            predict_sum += v;
+//
+//        double ground_col_sum =0;
+//        for(auto v : ground_collision_time)
+//            ground_col_sum += v;
+//
+//        double constr_sum =0;
+//        for(auto v : constraint_solve_time)
+//            constr_sum += v;
+//
+//        double update_sum =0;
+//        for(auto v : update_vel_time)
+//            update_sum += v;
+//
+//        std::cout << predict_sum/s.iteration_per_frame << " - "
+//                << ground_col_sum/s.iteration_per_frame << " - "
+//                << constr_sum/s.iteration_per_frame << " - "
+//                << constr_sum/s.iteration_per_frame << " - "
+//                << (predict_sum+ground_col_sum+constr_sum+update_sum)/s.iteration_per_frame;
+
+//        glFinish();
+//        std::cout << "calc: " << glfwGetTime()-start;
+//        start = glfwGetTime();
+//        std::cout << " - retr: " << glfwGetTime() - start << " - ";
+        std::cout << "sim: " << glfwGetTime()-start << " - ";
+    }
+    
+    void Cloth::GPU_send_data(){
+        //nodes
+        glNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
+        
+    }
+    
+    void Cloth::GPU_retrieve_data(){
+        //nodes
+        glGetNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
+        int franco = 0;
+    }
+    
+    
+    
     void Cloth::XPBD_predict(float t, glm::vec3 g, float max_velocity){
         /** Nodes **/
         for (auto& n : nodes) {
@@ -306,87 +500,8 @@ namespace cloth {
             n.pos += n.vel * t;
         }
     }
-    void Cloth::XPBD_solve_constraints(float t){
-        XPBD_solve_stretching(t);
-        XPBD_solve_bending(t);
-    }
-    void Cloth::XPBD_solve_stretching(float timeStep) {
-        
-        for (auto& s_c : s_cs) {
-            float alpha = s_c.compliance / timeStep / timeStep;
-            if (nodes.at(s_c.nodes.first).w + nodes.at(s_c.nodes.second).w == 0.0)
-                continue;
-            vec3 distance = nodes.at(s_c.nodes.first).pos - nodes.at(s_c.nodes.second).pos;
-            float abs_distance = sqrtf(powf(distance.x,2) + powf(distance.y,2) + powf(distance.z,2));
-            
-            if (abs_distance == 0.0)
-                continue;
-            distance = distance * (1 / abs_distance);
 
-            float rest_len = s_c.rest_dist;
-            float error = abs_distance - rest_len;
-            float correction = -error / (nodes.at(s_c.nodes.first).w + nodes.at(s_c.nodes.second).w + alpha);
-            
-            float first_corr = correction * nodes.at(s_c.nodes.first).w;
-            float second_corr = -correction * nodes.at(s_c.nodes.second).w;
-
-            nodes.at(s_c.nodes.first).pos += distance * first_corr;
-            nodes.at(s_c.nodes.second).pos += distance * second_corr;
-        }
-    }
-    void Cloth::XPBD_solve_bending(float timeStep) {
-        
-        for (auto& b_c : b_cs) {
-            float alpha = b_c.compliance / timeStep / timeStep;
-            if (nodes.at(b_c.nodes.first).w + nodes.at(b_c.nodes.second).w == 0.0)
-                continue;
-            vec3 distance = nodes.at(b_c.nodes.first).pos - nodes.at(b_c.nodes.second).pos;
-            float abs_distance = sqrtf(powf(distance.x,2) + powf(distance.y,2) + powf(distance.z,2));
-            if (abs_distance == 0.0)
-                continue;
-            distance *= 1 / abs_distance;
-
-            float rest_len = b_c.rest_dist;
-            float error = abs_distance - rest_len;
-            float correction = -error / ((nodes.at(b_c.nodes.first).w + nodes.at(b_c.nodes.second).w) + alpha);
-
-            nodes.at(b_c.nodes.first).pos += distance * correction * nodes.at(b_c.nodes.first).w;
-            nodes.at(b_c.nodes.second).pos += distance * -correction * nodes.at(b_c.nodes.second).w;
-        }
-    }
-    void Cloth::XPBD_update_velocity(float t){
-        /** Nodes **/
-        for (auto& n : nodes) {
-            if (n.w == 0.0)
-                continue;
-            n.vel = (n.pos - n.prev_pos) * 1.0f/t;
-        }
-    }
-    
-    void Cloth::GPU_predict(float t, glm::vec3 g, float max_velocity) {
-    
-        this->compute_predict.setVec3("g", g);
-        this->compute_predict.setFloat("t", t);
-        this->compute_predict.setFloat("max_velocity", max_velocity);
-        
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_verts);
-        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Node)*this->nodes.size(), this->nodes.data(), GL_DYNAMIC_READ);
-
-        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 7, this->ssbo_verts);
-        this->compute_predict.use();
-
-        glDispatchCompute(this->nodes.size(), 1, 1); //TODO aggiungere un groupsize multiplo di 32
-        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-        
-        Node* nodes_predicted_position = (Node*)glMapBuffer(GL_SHADER_STORAGE_BUFFER, GL_READ_ONLY);
-        
-        memcpy(nodes.data(), nodes_predicted_position, sizeof(Node) * nodes.size());
-        glUnmapBuffer(GL_SHADER_STORAGE_BUFFER);
-        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-        
-    }
-
-    void Cloth::TMP_solve_ground_collisions() {
+    void Cloth::XPBD_solve_ground_collisions() {
         for (auto& n : nodes) {
             if (n.w == 0.0)
                 continue;
@@ -399,87 +514,216 @@ namespace cloth {
         }
     }
     
-    void Cloth::updateHashGrid(render::State& s){
-        for(auto& n: nodes){
-            s.grid.grid.at(s.grid.hashIndex(n.pos)).push_back(&n); // popolo la hashgrid coi puntatori ai nodi
+    void Cloth::XPBD_solve_constraints(float time_step){
+        
+        
+        for (auto& c : this->constraints) {
+            float alpha = c.compliance / time_step / time_step;
+            
+            if (this->nodes.at(c.a_node).w + this->nodes.at(c.b_node).w == 0.0)
+                continue;
+            
+            vec3 distance = this->nodes.at(c.a_node).pos - this->nodes.at(c.b_node).pos;
+            float abs_distance = sqrtf(powf(distance.x,2) + powf(distance.y,2) + powf(distance.z,2));
+
+            if (abs_distance == 0.0)
+                continue;
+            distance = distance * (1 / abs_distance);
+
+            float rest_len = c.rest_dist;
+            float error = abs_distance - rest_len;
+            float correction = -error / (this->nodes.at(c.a_node).w + nodes.at(c.b_node).w + alpha);
+
+            float first_corr = correction * this->nodes.at(c.a_node).w;
+            float second_corr = -correction * this->nodes.at(c.b_node).w;
+
+            this->nodes.at(c.a_node).pos += distance * first_corr;
+            this->nodes.at(c.b_node).pos += distance * second_corr;
         }
     }
-    void Cloth::queryAll(render::State &s, float max_travel_distance) {
-        float max_dist_2 = max_travel_distance * max_travel_distance;
-        for(auto& node: nodes){
-            int min_x = s.grid.intCoord(node.pos.x - max_travel_distance);
-            int max_x = s.grid.intCoord(node.pos.x + max_travel_distance);
-            int min_y = s.grid.intCoord(node.pos.y - max_travel_distance);
-            int max_y = s.grid.intCoord(node.pos.y + max_travel_distance);
-            int min_z = s.grid.intCoord(node.pos.z - max_travel_distance);
-            int max_z = s.grid.intCoord(node.pos.z + max_travel_distance);
-
-            node.neighbours.clear();
-
-            for(int x=min_x; x<max_x; ++x)              // qui scorro tutte le celle in cui posso trovare particelle
-                for(int y=min_y; y<max_y; ++y)          // con cui la particella in esame potrebbe collidere
-                    for(int z=min_z; z<max_z; ++z){     // la complessità è cubica nel raggio di possibile collisione (max_travel_distance)
-                        int hashcoor = s.grid.hashCoords(x, y, z);
-                        for (auto n : s.grid.grid.at(hashcoor)){
-                            if(!n)
-                                continue;
-                            if (n->pos == node.pos)
-                                continue;
-                            vec3 dist = node.pos - n->pos;
-                            float dist_2 = (powf(dist.x,2) + powf(dist.y,2) + powf(dist.z,2));
-                            if (dist_2 <=max_dist_2)
-                                node.neighbours.push_back(n);
-                        }
-                    }
-        }
-    }
-    void Cloth::HG_solve_collisions(){
-        float thickness_2 = this->node_thickness * this->node_thickness;
-        for(auto& n: nodes) {
+    
+    void Cloth::XPBD_update_velocity(float t) {
+        /** Nodes **/
+        for (auto& n : nodes) {
             if (n.w == 0.0)
                 continue;
-            for(auto neighbour_node: n.neighbours){
-                if(!neighbour_node) {
-                    continue;
-                }
-                if(neighbour_node->w == 0.0) {
-                    continue;
-                }
-                
-                vec3 diff = neighbour_node->pos - n.pos;
-                float dist_2 = diff.x*diff.x + diff.y*diff.y + diff.z*diff.z;
-                
-                if(dist_2 > n.thickness * n.thickness || dist_2 == 0.0) {
-                    continue;
-                }
-                
-                vec3 nat_diff = n.nat_pos - neighbour_node->nat_pos;
-                float nat_dist_2 = nat_diff.x*nat_diff.x + nat_diff.y*nat_diff.y + nat_diff.z*nat_diff.z;
-                if(dist_2 >= nat_dist_2) {
-                    continue;
-                }
-                
-                float min_dist = sqrtf(thickness_2);
-                if(nat_dist_2 < thickness_2)
-                    min_dist = sqrtf(min_dist);
-
-                float dist = sqrtf(dist_2);
-                vec3 correction = diff * ((min_dist-dist)/dist);
-                n.pos += correction * (-0.5f);
-                neighbour_node->pos += correction * (0.5f);
-
-                vec3 n1_vel = n.pos - n.prev_pos;
-                vec3 n2_vel = neighbour_node->pos - neighbour_node->prev_pos;
-
-                vec3 av_vel = (n1_vel + n2_vel) * 0.5f;
-
-                n1_vel = av_vel - n1_vel;
-                n2_vel = av_vel - n2_vel;
-
-                n.pos += n1_vel * this->self_friction;
-                neighbour_node->pos += n2_vel * this->self_friction;
-            }
+            n.vel = (n.pos - n.prev_pos) * 1.0f/t;
         }
+    }
+    
+    void Cloth::GPU_XPBD_predict(float time_step, glm::vec3 gravity, float max_velocity) {
+        
+        this->compute_predict.setVec3("gravity", gravity);
+        this->compute_predict.setFloat("time_step", time_step);
+        this->compute_predict.setFloat("max_velocity", max_velocity);
+        
+        this->compute_predict.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
+    
+    void Cloth::GPU_solve_ground_collisions() {
+
+        this->TMP_compute_ground_collisions.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    }
+    
+     void Cloth::GPU_XPBD_solve_constraints_coloring(float time_step, int passes){
+        
+        this->compute_solve_coloring_constraints.setFloat("time_step", time_step);
+
+        int set_start = 0;
+        int set_end = 0;
+        
+        if(passes == 0)
+            passes = (int)constr_sets.size();
+        
+        for(int i=0; i<passes; i++){
+            set_start = set_end;
+            set_end += (int)constr_sets.at(i).size();
+            this->compute_solve_coloring_constraints.setInt("set_start", set_start);
+            this->compute_solve_coloring_constraints.setInt("set_end", set_end);
+            
+            this->compute_solve_coloring_constraints.use();
+            glDispatchCompute(std::ceil(constr_sets.at(i).size()/32), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
+        
+    }
+
+    void Cloth::GPU_XPBD_solve_constraints_jacobi(float time_step, int coloring_passes){
+
+        this->compute_solve_jacobi_constraints.setFloat("time_step", time_step);
+        
+        int first_constr = 0;
+        for(int i=0; i<coloring_passes; i++){
+            first_constr += (int)constr_sets.at(i).size();
+        }
+        this->compute_solve_jacobi_constraints.setInt("first_constr", first_constr);
+
+        this->compute_solve_jacobi_constraints.use();
+        glDispatchCompute(std::ceil((this->constraints.size()-first_constr)/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    }
+
+    void Cloth::GPU_XPBD_add_jacobi_correction(){
+        float magic_number = 0.2;
+        this->compute_solve_jacobi_constraints.setFloat("magicNumber", magic_number);
+        
+        this->compute_jacobi_add_correction.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
+    
+    void Cloth::GPU_XPBD_update_velocity (float time_step){
+        this->compute_update_velocities.setFloat("time_step", time_step);
+        
+        this->compute_update_velocities.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
+    
+    void Cloth::updateHashGrid(hashgrid::HashGrid& grid){
+                
+//        for(auto& cell : grid.cells){
+//            cell = 0;
+//        }
+//        
+//        for(auto& n: this->nodes){
+//            grid.cells.at(grid.hashIndex(n.pos))++; //incremento il contatore di particelle della cella in cui sta il nodo
+//        }
+//        
+//        for(int i=1; i<grid.cells.size(); i++){
+//            grid.cells.at(i) += grid.cells.at(i-1);
+//        }
+//        
+//        for(int i=0; i<this->nodes.size(); i++){
+//            
+//            int hash_index = grid.hashIndex(this->nodes.at(i).pos);
+//            
+//            grid.cells.at(hash_index)--;
+//            grid.nodes_indexes.at(grid.cells.at(hash_index)) = i;
+//        }
+    }
+    
+    void Cloth::queryAll(hashgrid::HashGrid& grid, float max_travel_distance) {
+//        float max_dist_2 = max_travel_distance * max_travel_distance;
+//        for(auto& node: nodes){
+//            int min_x = grid.intCoord(node.pos.x - max_travel_distance);
+//            int max_x = grid.intCoord(node.pos.x + max_travel_distance);
+//            int min_y = grid.intCoord(node.pos.y - max_travel_distance);
+//            int max_y = grid.intCoord(node.pos.y + max_travel_distance);
+//            int min_z = grid.intCoord(node.pos.z - max_travel_distance);
+//            int max_z = grid.intCoord(node.pos.z + max_travel_distance);
+//            
+//
+//            for(int x=min_x; x<max_x; ++x)              // qui scorro tutte le celle in cui posso trovare particelle
+//                for(int y=min_y; y<max_y; ++y)          // con cui la particella in esame potrebbe collidere
+//                    for(int z=min_z; z<max_z; ++z){     // la complessità è cubica nel raggio di possibile collisione (max_travel_distance)
+//                        int hashcoor = grid.hashCoords(x, y, z);
+//                        for (auto n : grid.cells.at(hashcoor)){
+//                            if(!n)
+//                                continue;
+//                            if (n->pos == node.pos)
+//                                continue;
+//                            vec3 dist = node.pos - n->pos;
+//                            float dist_2 = (powf(dist.x,2) + powf(dist.y,2) + powf(dist.z,2));
+//                            if (dist_2 <=max_dist_2)
+//                                node.neighbours.push_back(n);
+//                        }
+//                    }
+//        }
+    }
+    void Cloth::HG_solve_collisions(){
+//        float thickness_2 = this->node_thickness * this->node_thickness;
+//        for(auto& n: nodes) {
+//            if (n.w == 0.0)
+//                continue;
+//            for(auto neighbour_node: n.neighbours){
+//                if(!neighbour_node) {
+//                    continue;
+//                }
+//                if(neighbour_node->w == 0.0) {
+//                    continue;
+//                }
+//                
+//                vec3 diff = neighbour_node->pos - n.pos;
+//                float dist_2 = diff.x*diff.x + diff.y*diff.y + diff.z*diff.z;
+//                
+//                if(dist_2 > n.thickness * n.thickness || dist_2 == 0.0) {
+//                    continue;
+//                }
+//                
+//                vec3 nat_diff = n.nat_pos - neighbour_node->nat_pos;
+//                float nat_dist_2 = nat_diff.x*nat_diff.x + nat_diff.y*nat_diff.y + nat_diff.z*nat_diff.z;
+//                if(dist_2 >= nat_dist_2) {
+//                    continue;
+//                }
+//                
+//                float min_dist = sqrtf(thickness_2);
+//                if(nat_dist_2 < thickness_2)
+//                    min_dist = sqrtf(min_dist);
+//
+//                float dist = sqrtf(dist_2);
+//                vec3 correction = diff * ((min_dist-dist)/dist);
+//                n.pos += correction * (-0.5f);
+//                neighbour_node->pos += correction * (0.5f);
+//
+//                vec3 n1_vel = n.pos - n.prev_pos;
+//                vec3 n2_vel = neighbour_node->pos - neighbour_node->prev_pos;
+//
+//                vec3 av_vel = (n1_vel + n2_vel) * 0.5f;
+//
+//                n1_vel = av_vel - n1_vel;
+//                n2_vel = av_vel - n2_vel;
+//
+//                n.pos += n1_vel * this->self_friction;
+//                neighbour_node->pos += n2_vel * this->self_friction;
+//            }
+//        }
     }
     
 }

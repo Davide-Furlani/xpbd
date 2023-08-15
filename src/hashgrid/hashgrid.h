@@ -9,9 +9,7 @@
 
 #pragma once
 #include <vector>
-#include <array>
 #include <cmath>
-#include "node/node.h"
 #include "glm.hpp"
 
 namespace hashgrid {
@@ -20,15 +18,15 @@ namespace hashgrid {
     public:
         float spacing;
         int num_cells;
-        std::vector<std::vector<cloth::Node*>> grid;
+        std::vector<int> cells;
+        std::vector<int> nodes_indexes;
         
-        HashGrid(float spacing, int num_cells);
         
-        int hashCoords(int x, int y, int z);
-        int intCoord(float c);
-        int hashIndex(glm::vec3 p);
+        HashGrid(float spacing, int num_cells, int num_particles);
         
-        void update_grid();
+        [[nodiscard]] int hashCoords(int x, int y, int z) const;
+        [[nodiscard]] int intCoord(float c) const;
+        [[nodiscard]] int hashIndex(glm::vec3 p) const;
 
     };
 }

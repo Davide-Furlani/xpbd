@@ -1,0 +1,41 @@
+#version 460 core
+
+layout (local_size_x = 32) in;
+
+struct Vec_pointer {
+    double do_not_use_0;
+    double do_not_use_1;
+    double do_not_use_2;
+};
+
+struct Node {
+    vec3 pos;
+    float thickness;
+    vec3 prev_pos;
+    float m;
+    vec3 nat_pos;
+    float w;
+    vec3 vel;
+    vec3 prev_vel;
+    vec3 n;
+    vec3 corr;
+    vec2 uv_c;
+    Vec_pointer neighbors_vector_do_not_use;
+};
+
+layout(std430, binding = 0) buffer nodesSSBO {
+    Node nodes[];
+};
+
+void main(){
+
+    uint id = gl_GlobalInvocationID.x;
+    
+    if(nodes[id].pos.z < 0.5*nodes[id].thickness && nodes[id].w != 0.0) {
+        float damping = 0.02;
+        vec3 diff = nodes[id].pos - nodes[id].prev_pos;
+        nodes[id].pos += diff * -damping;
+        nodes[id].pos.z = 0.5 * nodes[id].thickness;
+    }
+    
+}

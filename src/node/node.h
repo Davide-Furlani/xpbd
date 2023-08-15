@@ -64,6 +64,12 @@ public:
 private: float padding_n_w = 0.0;
 public:
     /**
+     * Correction vector for Jacobi solve
+     */
+     vec3 corr;
+private: float padding_corr_w = 0.0;
+public:
+    /**
      * UV coordinates (for rendering purposes)
     */
     vec2 uv_c;

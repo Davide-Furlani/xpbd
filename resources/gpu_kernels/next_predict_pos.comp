@@ -1,6 +1,6 @@
 #version 460 core
 
-layout (local_size_x = 1) in; //TODO local_size multiplo di 32
+layout (local_size_x = 32) in;
 
 struct Vec_pointer {
     double do_not_use_0;
@@ -18,16 +18,17 @@ struct Node {
     vec3 vel;
     vec3 prev_vel;
     vec3 n;
+    vec3 corr;
     vec2 uv_c;
     Vec_pointer neighbors_vector_do_not_use;
 };
 
-layout(std430, binding = 7) buffer nodesSSBO {
+layout(std430, binding = 0) buffer nodesSSBO {
     Node nodes[];
 };
 
-uniform vec3 g;
-uniform float t;
+uniform vec3 gravity;
+uniform float time_step;
 uniform float max_velocity;
 
 void main(){
@@ -35,11 +36,12 @@ void main(){
     uint id = gl_GlobalInvocationID.x;
     
     if(nodes[id].w != 0.0) {
-        nodes[id].vel += g * t;
-        float tmp_vel = sqrt(nodes[id].vel.x*nodes[id].vel.x + nodes[id].vel.y*nodes[id].vel.y + nodes[id].vel.z*nodes[id].vel.z); //forzo la velocità massima
-        if(tmp_vel>max_velocity)                                                   //
-        nodes[id].vel *= max_velocity/tmp_vel;                                             //
+        nodes[id].vel += gravity * time_step;
+        float tmp_vel = sqrt(nodes[id].vel.x*nodes[id].vel.x + nodes[id].vel.y*nodes[id].vel.y + nodes[id].vel.z*nodes[id].vel.z);  //forzo la velocità massima
+        if(tmp_vel>max_velocity){                                                                                                   //
+            nodes[id].vel *= max_velocity/tmp_vel;                                                                                  //
+        }                                                                                                                           //
         nodes[id].prev_pos = nodes[id].pos;
-        nodes[id].pos += nodes[id].vel * t;
+        nodes[id].pos += nodes[id].vel * time_step;
     }
 }

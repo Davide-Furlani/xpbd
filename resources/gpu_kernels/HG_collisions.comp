@@ -1,0 +1,44 @@
+#version 460 core
+
+layout (local_size_x = 1) in; //TODO local_size multiplo di 32
+
+struct Vec_pointer {
+    double do_not_use_0;
+    double do_not_use_1;
+    double do_not_use_2;
+};
+
+struct Node {
+    vec3 pos;
+    float thickness;
+    vec3 prev_pos;
+    float m;
+    vec3 nat_pos;
+    float w;
+    vec3 vel;
+    vec3 prev_vel;
+    vec3 n;
+    vec2 uv_c;
+    Vec_pointer neighbors_vector_do_not_use;
+};
+
+struct Constraint {
+    int a_node;
+    int b_node;
+    float rest_dist;
+    float compliance;
+};
+
+layout(std430, binding = 0) buffer nodesSSBO {
+    Node nodes[];
+};
+layout(std430, binding = 1) buffer constraintsSSBO {
+    Constraint constr[];
+};
+
+void main(){
+
+    uint id = gl_GlobalInvocationID.x;
+
+   
+}
