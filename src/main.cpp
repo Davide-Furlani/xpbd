@@ -14,8 +14,8 @@
 constexpr unsigned int SCR_WIDTH = 750;
 constexpr unsigned int SCR_HEIGHT = 450;
 
-constexpr unsigned int CLOTH_WIDTH  = 128;
-constexpr unsigned int CLOTH_HEIGHT = 128;
+constexpr unsigned int CLOTH_WIDTH  = 512;
+constexpr unsigned int CLOTH_HEIGHT = 512;
 constexpr float PARTICLE_THICKNESS = 0.02f;
 constexpr float GRID_CELL_SIZE = 2*PARTICLE_THICKNESS;
 
@@ -38,6 +38,7 @@ int main(){
     std::cout << renderer << std::endl;
 
     cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, 2, PARTICLE_THICKNESS, state};
+    cloth.GPU_send_data();
     
     render::Camera camera {glm::vec3(3.0, 2.0, 1.3), 
                            glm::vec3(-1.0, -1.0, -0.3),
@@ -51,7 +52,7 @@ int main(){
     // main render loop
     while(!glfwWindowShouldClose(window)){
         state.update(window);
-//        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
+        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
         
         processInput(window, state, camera);
         
@@ -67,9 +68,9 @@ int main(){
 //            cloth.unpin1();
 //        }
 
-//        cloth.GPU_send_data();
+        cloth.GPU_retrieve_data();
+        cloth.GPU_send_data();
         cloth.simulate_XPBD(state, grid);
-//        cloth.GPU_retrieve_data();
         
         cloth.render(camera);
         axis.render(camera);

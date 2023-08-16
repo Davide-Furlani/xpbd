@@ -411,7 +411,7 @@ namespace cloth {
 //        std::vector<double> constraint_solve_time(s.iteration_per_frame);
 //        std::vector<double> update_vel_time(s.iteration_per_frame);
 //        start = glfwGetTime();
-        GPU_send_data();
+//        GPU_send_data();
 //        glFinish();
 //        std::cout << "send: " << glfwGetTime() - start << " - ";
 
@@ -422,7 +422,7 @@ namespace cloth {
 //            glFinish();
 //            predict_time[i] = glfwGetTime()-start;
 //            start = glfwGetTime();
-            GPU_solve_ground_collisions();
+//            GPU_solve_ground_collisions();
 //            glFinish();
 //            ground_collision_time[i] = glfwGetTime()-start;
 //            start = glfwGetTime();
@@ -446,7 +446,7 @@ namespace cloth {
 //            update_vel_time[i] = glfwGetTime()-start;
         }
 
-        GPU_retrieve_data();
+//        GPU_retrieve_data();
 //        double predict_sum =0;
 //        for(auto v : predict_time)
 //            predict_sum += v;
