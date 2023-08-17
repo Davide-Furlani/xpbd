@@ -13,9 +13,15 @@
 #include <glm.hpp>
 #include "hashgrid/hashgrid.h"
 
+#define CPU 0
+#define GPU 1
+
 namespace render {
     struct State {
     public:
+        
+        //simulation
+        int sym_type;
         
         //physics
         int iteration_per_frame = 30;
@@ -45,7 +51,7 @@ namespace render {
 
         void update(GLFWwindow* window);
         
-        State(unsigned int w, unsigned int h);
+        State(unsigned int w, unsigned int h, int sim_type);
         
     };
 }

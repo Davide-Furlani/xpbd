@@ -76,7 +76,7 @@ public:
     /**
      * vector of pointers that contains the neighbour nodes
      */
-    std::vector<cloth::Node*> neighbours;
+    std::vector<int> neighbours;
 
     /**
      * Constructor of node

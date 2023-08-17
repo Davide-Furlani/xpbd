@@ -24,7 +24,7 @@ public:
     float node_mass = 0.01f;
     float node_thickness;
     float stretching_compliance = 0.0f;
-    float bending_compliance = 0.000f;
+    float bending_compliance = 0.03f;
     std::vector<Node> nodes;
     float self_friction = 0.2f;
     std::vector<Constraint> constraints;
@@ -72,7 +72,6 @@ public:
     // fine temporaneo
     
     Cloth(int rows, int columns, float size, float thickness, render::State& s);
-    
     
     void generate_constraints(render::State& s);
     void generate_stretch_constraints(render::State& s);

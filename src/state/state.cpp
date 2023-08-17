@@ -15,8 +15,10 @@ namespace render {
 
     
     
-    State::State(unsigned int w, unsigned int h){
+    State::State(unsigned int w, unsigned int h, int sym_type){
                 
+        this->sym_type = sym_type;
+        
         scr_width = w;
         scr_height = h;
         

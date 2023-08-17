@@ -14,9 +14,10 @@
 constexpr unsigned int SCR_WIDTH = 750;
 constexpr unsigned int SCR_HEIGHT = 450;
 
-constexpr unsigned int CLOTH_WIDTH  = 512;
-constexpr unsigned int CLOTH_HEIGHT = 512;
-constexpr float PARTICLE_THICKNESS = 0.02f;
+constexpr unsigned int CLOTH_WIDTH  = 24;
+constexpr unsigned int CLOTH_HEIGHT = 24;
+constexpr float CLOTH_SIZE = 2.0;
+constexpr float PARTICLE_THICKNESS = CLOTH_SIZE/CLOTH_WIDTH;
 constexpr float GRID_CELL_SIZE = 2*PARTICLE_THICKNESS;
 
 using namespace glm;
@@ -26,7 +27,7 @@ using namespace cloth;
 int main(){
 
     hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT, CLOTH_WIDTH*CLOTH_HEIGHT};
-    render::State state {SCR_WIDTH, SCR_HEIGHT};
+    render::State state {SCR_WIDTH, SCR_HEIGHT, CPU};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
     set_GL_parameters();
@@ -58,7 +59,7 @@ int main(){
         
         glClearColor(0.15f, 0.15f, 0.15f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
+//        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
 
         cloth.proces_input(window);
 //        if(state.current_time_from_start > 5){
@@ -67,9 +68,11 @@ int main(){
 //        if(state.current_time_from_start > 5){
 //            cloth.unpin1();
 //        }
-
-        cloth.GPU_retrieve_data();
-        cloth.GPU_send_data();
+    
+        if(state.sym_type == GPU){
+            cloth.GPU_retrieve_data();
+            cloth.GPU_send_data();
+        }
         cloth.simulate_XPBD(state, grid);
         
         cloth.render(camera);
@@ -79,6 +82,7 @@ int main(){
         glfwSwapBuffers(window);
 //        glFlush(); // no framerate max
         glfwPollEvents();
+        
 //        std::cout.precision(1);
 //        std::cout << std::fixed << 1/state.delta_time << " \t";
 //        std::cout.precision(3);

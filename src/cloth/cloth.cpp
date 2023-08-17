@@ -14,7 +14,6 @@
 #include <gtc/matrix_transform.hpp>
 #include "node/node.h"
 #include "cloth.h"
-#include "compute_shader.h"
 #include "constraints/constraint.h"
 #include "display/display.h"
 #include "state/state.h"
@@ -370,33 +369,30 @@ namespace cloth {
     }
     
     void Cloth::simulate_XPBD(render::State& s, hashgrid::HashGrid& grid) {
-//        CPU_SIM(s, grid);
-        GPU_SIM(s, grid);
+        if(s.sym_type == CPU)
+            CPU_SIM(s, grid);
+        if(s.sym_type == GPU)
+            GPU_SIM(s, grid);
     }
 
     void Cloth::CPU_SIM(render::State& s, hashgrid::HashGrid& grid){
 
-//        double start = glfwGetTime();
-
         float time_step = s.simulation_step_time/s.iteration_per_frame;
         float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
-//        float max_travel_distance = max_velocity * s.simulation_step_time;
-//        updateHashGrid(s);
-//        queryAll(s, max_travel_distance);
+        float max_travel_distance = max_velocity * s.simulation_step_time;
+        updateHashGrid(grid);
+        queryAll(grid, max_travel_distance);
 
         for(int i=0; i< s.iteration_per_frame; ++i){
             XPBD_predict(time_step, s.gravity, max_velocity);
             XPBD_solve_ground_collisions();
             XPBD_solve_constraints(time_step);
-//            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
+            HG_solve_collisions();
             XPBD_update_velocity(time_step);
         }
-//        std::cout << "sim: " << glfwGetTime()-start << " - ";
     }
     
     void Cloth::GPU_SIM(render::State& s, hashgrid::HashGrid& grid){
-        
-//        double start = glfwGetTime();
 
         float time_step = s.simulation_step_time/s.iteration_per_frame;
         float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
@@ -404,28 +400,9 @@ namespace cloth {
 //        updateHashGrid(s);
 //        queryAll(s, max_travel_distance);
 
-
-
-//        std::vector<double> predict_time(s.iteration_per_frame);
-//        std::vector<double> ground_collision_time(s.iteration_per_frame);
-//        std::vector<double> constraint_solve_time(s.iteration_per_frame);
-//        std::vector<double> update_vel_time(s.iteration_per_frame);
-//        start = glfwGetTime();
-//        GPU_send_data();
-//        glFinish();
-//        std::cout << "send: " << glfwGetTime() - start << " - ";
-
         for(int i=0; i< s.iteration_per_frame; ++i){
-
-//            start = glfwGetTime();
             GPU_XPBD_predict(time_step, s.gravity, max_velocity);
-//            glFinish();
-//            predict_time[i] = glfwGetTime()-start;
-//            start = glfwGetTime();
-//            GPU_solve_ground_collisions();
-//            glFinish();
-//            ground_collision_time[i] = glfwGetTime()-start;
-//            start = glfwGetTime();
+            GPU_solve_ground_collisions();
             if(solve_type == COLORING) {
                 GPU_XPBD_solve_constraints_coloring(time_step, 0);
             }else if(solve_type == JACOBI) {
@@ -436,56 +413,9 @@ namespace cloth {
                 GPU_XPBD_solve_constraints_jacobi(time_step, 4);
                 GPU_XPBD_add_jacobi_correction();
             }
-//            glFinish();
-//            constraint_solve_time[i] = glfwGetTime()-start;
-//            start = glfwGetTime();
 //            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
             GPU_XPBD_update_velocity(time_step);
-//            GPU_retrieve_data();
-//            glFinish();
-//            update_vel_time[i] = glfwGetTime()-start;
         }
-
-//        GPU_retrieve_data();
-//        double predict_sum =0;
-//        for(auto v : predict_time)
-//            predict_sum += v;
-//
-//        double ground_col_sum =0;
-//        for(auto v : ground_collision_time)
-//            ground_col_sum += v;
-//
-//        double constr_sum =0;
-//        for(auto v : constraint_solve_time)
-//            constr_sum += v;
-//
-//        double update_sum =0;
-//        for(auto v : update_vel_time)
-//            update_sum += v;
-//
-//        std::cout << predict_sum/s.iteration_per_frame << " - "
-//                << ground_col_sum/s.iteration_per_frame << " - "
-//                << constr_sum/s.iteration_per_frame << " - "
-//                << constr_sum/s.iteration_per_frame << " - "
-//                << (predict_sum+ground_col_sum+constr_sum+update_sum)/s.iteration_per_frame;
-
-//        glFinish();
-//        std::cout << "calc: " << glfwGetTime()-start;
-//        start = glfwGetTime();
-//        std::cout << " - retr: " << glfwGetTime() - start << " - ";
-//        std::cout << "sim: " << glfwGetTime()-start << " - ";
-    }
-    
-    void Cloth::GPU_send_data(){
-        //nodes
-        glNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
-        
-    }
-    
-    void Cloth::GPU_retrieve_data(){
-        //nodes
-        glGetNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
-        int franco = 0;
     }
     
     void Cloth::XPBD_predict(float t, glm::vec3 g, float max_velocity){
@@ -551,6 +481,18 @@ namespace cloth {
                 continue;
             n.vel = (n.pos - n.prev_pos) * 1.0f/t;
         }
+    }
+
+    void Cloth::GPU_send_data(){
+        //nodes
+        glNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
+
+    }
+
+    void Cloth::GPU_retrieve_data(){
+        //nodes
+        glGetNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
+        int franco = 0;
     }
     
     void Cloth::GPU_XPBD_predict(float time_step, glm::vec3 gravity, float max_velocity) {
@@ -630,102 +572,102 @@ namespace cloth {
     
     void Cloth::updateHashGrid(hashgrid::HashGrid& grid){
                 
-//        for(auto& cell : grid.cells){
-//            cell = 0;
-//        }
-//        
-//        for(auto& n: this->nodes){
-//            grid.cells.at(grid.hashIndex(n.pos))++; //incremento il contatore di particelle della cella in cui sta il nodo
-//        }
-//        
-//        for(int i=1; i<grid.cells.size(); i++){
-//            grid.cells.at(i) += grid.cells.at(i-1);
-//        }
-//        
-//        for(int i=0; i<this->nodes.size(); i++){
-//            
-//            int hash_index = grid.hashIndex(this->nodes.at(i).pos);
-//            
-//            grid.cells.at(hash_index)--;
-//            grid.nodes_indexes.at(grid.cells.at(hash_index)) = i;
-//        }
+        for(auto& cell : grid.cells){
+            cell = 0;
+        }
+
+        for(auto& n: this->nodes){
+            grid.cells.at(grid.hashIndex(n.pos))++; //incremento il contatore di particelle della cella in cui sta il nodo
+        }
+
+        for(int i=1; i<grid.cells.size(); i++){
+            grid.cells.at(i) += grid.cells.at(i-1);  // riempio tutte le celle della hashgrid
+        }
+
+        for(int i=0; i<this->nodes.size(); i++){
+
+            int hash_index = grid.hashIndex(this->nodes.at(i).pos);
+
+            grid.cells.at(hash_index)--;                            // sistemo i puntatori delle celle
+            grid.nodes_indexes.at(grid.cells.at(hash_index)) = i;   // metto le particelle nel loro array
+        }
+
+
     }
     
     void Cloth::queryAll(hashgrid::HashGrid& grid, float max_travel_distance) {
-//        float max_dist_2 = max_travel_distance * max_travel_distance;
-//        for(auto& node: nodes){
-//            int min_x = grid.intCoord(node.pos.x - max_travel_distance);
-//            int max_x = grid.intCoord(node.pos.x + max_travel_distance);
-//            int min_y = grid.intCoord(node.pos.y - max_travel_distance);
-//            int max_y = grid.intCoord(node.pos.y + max_travel_distance);
-//            int min_z = grid.intCoord(node.pos.z - max_travel_distance);
-//            int max_z = grid.intCoord(node.pos.z + max_travel_distance);
-//            
-//
-//            for(int x=min_x; x<max_x; ++x)              // qui scorro tutte le celle in cui posso trovare particelle
-//                for(int y=min_y; y<max_y; ++y)          // con cui la particella in esame potrebbe collidere
-//                    for(int z=min_z; z<max_z; ++z){     // la complessità è cubica nel raggio di possibile collisione (max_travel_distance)
-//                        int hashcoor = grid.hashCoords(x, y, z);
-//                        for (auto n : grid.cells.at(hashcoor)){
-//                            if(!n)
-//                                continue;
-//                            if (n->pos == node.pos)
-//                                continue;
-//                            vec3 dist = node.pos - n->pos;
-//                            float dist_2 = (powf(dist.x,2) + powf(dist.y,2) + powf(dist.z,2));
-//                            if (dist_2 <=max_dist_2)
-//                                node.neighbours.push_back(n);
-//                        }
-//                    }
-//        }
+        float max_dist_2 = max_travel_distance * max_travel_distance;
+        for(int node=0; node<this->nodes.size(); node++){
+            int min_x = grid.intCoord(this->nodes.at(node).pos.x - max_travel_distance);
+            int max_x = grid.intCoord(this->nodes.at(node).pos.x + max_travel_distance);
+            int min_y = grid.intCoord(this->nodes.at(node).pos.y - max_travel_distance);
+            int max_y = grid.intCoord(this->nodes.at(node).pos.y + max_travel_distance);
+            int min_z = grid.intCoord(this->nodes.at(node).pos.z - max_travel_distance);
+            int max_z = grid.intCoord(this->nodes.at(node).pos.z + max_travel_distance);
+
+            this->nodes.at(node).neighbours.clear();
+
+
+            for(int x=min_x; x<max_x; ++x)              // qui scorro tutte le celle in cui posso trovare particelle
+                for(int y=min_y; y<max_y; ++y)          // con cui la particella in esame potrebbe collidere
+                    for(int z=min_z; z<max_z; ++z){     // la complessità è cubica nel raggio di possibile collisione (max_travel_distance)
+                        int hashcoor = grid.hashCoords(x, y, z);
+                        for (int i=grid.cells.at(hashcoor); i< grid.cells.at(hashcoor+1); i++){
+                            if (i == node)
+                                continue;
+                            vec3 dist = this->nodes.at(node).pos - this->nodes.at(grid.nodes_indexes.at(i)).pos;
+                            float dist_2 = (powf(dist.x,2) + powf(dist.y,2) + powf(dist.z,2));
+                            if (dist_2 <=max_dist_2)
+                                this->nodes.at(node).neighbours.push_back(grid.nodes_indexes.at(i));
+                        }
+                    }
+        }
     }
     void Cloth::HG_solve_collisions(){
-//        float thickness_2 = this->node_thickness * this->node_thickness;
-//        for(auto& n: nodes) {
-//            if (n.w == 0.0)
-//                continue;
-//            for(auto neighbour_node: n.neighbours){
-//                if(!neighbour_node) {
-//                    continue;
-//                }
-//                if(neighbour_node->w == 0.0) {
-//                    continue;
-//                }
-//                
-//                vec3 diff = neighbour_node->pos - n.pos;
-//                float dist_2 = diff.x*diff.x + diff.y*diff.y + diff.z*diff.z;
-//                
-//                if(dist_2 > n.thickness * n.thickness || dist_2 == 0.0) {
-//                    continue;
-//                }
-//                
-//                vec3 nat_diff = n.nat_pos - neighbour_node->nat_pos;
-//                float nat_dist_2 = nat_diff.x*nat_diff.x + nat_diff.y*nat_diff.y + nat_diff.z*nat_diff.z;
-//                if(dist_2 >= nat_dist_2) {
-//                    continue;
-//                }
-//                
-//                float min_dist = sqrtf(thickness_2);
-//                if(nat_dist_2 < thickness_2)
-//                    min_dist = sqrtf(min_dist);
-//
-//                float dist = sqrtf(dist_2);
-//                vec3 correction = diff * ((min_dist-dist)/dist);
-//                n.pos += correction * (-0.5f);
-//                neighbour_node->pos += correction * (0.5f);
-//
-//                vec3 n1_vel = n.pos - n.prev_pos;
-//                vec3 n2_vel = neighbour_node->pos - neighbour_node->prev_pos;
-//
-//                vec3 av_vel = (n1_vel + n2_vel) * 0.5f;
-//
-//                n1_vel = av_vel - n1_vel;
-//                n2_vel = av_vel - n2_vel;
-//
-//                n.pos += n1_vel * this->self_friction;
-//                neighbour_node->pos += n2_vel * this->self_friction;
-//            }
-//        }
+        float thickness_2 = this->node_thickness * this->node_thickness;
+        for(auto& n: nodes) {
+            if (n.w == 0.0)
+                continue;
+            for(int n_idx: n.neighbours){
+                
+                if(this->nodes.at(n_idx).w == 0.0) {
+                    continue;
+                }
+
+                vec3 diff = this->nodes.at(n_idx).pos - n.pos;
+                float dist_2 = diff.x*diff.x + diff.y*diff.y + diff.z*diff.z;
+
+                if(dist_2 > thickness_2 || dist_2 == 0.0) {
+                    continue;
+                }
+
+                vec3 nat_dist = n.nat_pos - this->nodes.at(n_idx).nat_pos;
+                float nat_dist_2 = nat_dist.x*nat_dist.x + nat_dist.y*nat_dist.y + nat_dist.z*nat_dist.z;
+                if(dist_2 > nat_dist_2) {
+                    continue;
+                }
+
+                float min_dist = n.thickness;
+                if(nat_dist_2 < thickness_2)
+                    min_dist = sqrtf(nat_dist_2);
+
+                float dist = sqrtf(dist_2);
+                vec3 correction = diff * ((min_dist-dist)/dist);
+                n.pos += correction * (-0.5f);
+                this->nodes.at(n_idx).pos += correction * (0.5f);
+
+                vec3 n1_vel = n.pos - n.prev_pos;
+                vec3 n2_vel = this->nodes.at(n_idx).pos - this->nodes.at(n_idx).prev_pos;
+
+                vec3 av_vel = (n1_vel + n2_vel) * 0.5f;
+
+                n1_vel = av_vel - n1_vel;
+                n2_vel = av_vel - n2_vel;
+
+                n.pos += n1_vel * this->self_friction;
+                this->nodes.at(n_idx).pos += n2_vel * this->self_friction;
+            }
+        }
     }
     
 }
