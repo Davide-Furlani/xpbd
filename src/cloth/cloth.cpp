@@ -396,10 +396,10 @@ namespace cloth {
 
         float time_step = s.simulation_step_time/s.iteration_per_frame;
         float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
-//        float max_travel_distance = max_velocity * s.simulation_step_time;
-//        updateHashGrid(s);
-//        queryAll(s, max_travel_distance);
-
+        float max_travel_distance = max_velocity * s.simulation_step_time;
+        updateHashGrid(grid);
+        queryAll(grid, max_travel_distance);
+        GPU_send_data();
         for(int i=0; i< s.iteration_per_frame; ++i){
             GPU_XPBD_predict(time_step, s.gravity, max_velocity);
             GPU_solve_ground_collisions();
@@ -413,9 +413,12 @@ namespace cloth {
                 GPU_XPBD_solve_constraints_jacobi(time_step, 4);
                 GPU_XPBD_add_jacobi_correction();
             }
-//            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
+            GPU_retrieve_data();
+            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
+            GPU_send_data();
             GPU_XPBD_update_velocity(time_step);
         }
+        GPU_retrieve_data();
     }
     
     void Cloth::XPBD_predict(float t, glm::vec3 g, float max_velocity){

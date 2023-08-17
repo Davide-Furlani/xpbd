@@ -69,10 +69,10 @@ int main(){
 //            cloth.unpin1();
 //        }
     
-        if(state.sym_type == GPU){
-            cloth.GPU_retrieve_data();
-            cloth.GPU_send_data();
-        }
+//        if(state.sym_type == GPU){
+//            cloth.GPU_retrieve_data();
+//            cloth.GPU_send_data();
+//        }
         cloth.simulate_XPBD(state, grid);
         
         cloth.render(camera);
