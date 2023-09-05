@@ -30,9 +30,6 @@ namespace hashgrid {
         int hashCoords(int x, int y, int z);
         int intCoord(float c);
         int hashIndex(glm::vec3 p);
-        
-        void update_grid();
 
-        std::vector<std::variant<cloth::Node*, mesh::Triangle*>>& get_neighbours(cloth::Node& n);
     };
 }

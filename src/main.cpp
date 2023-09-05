@@ -14,10 +14,11 @@
 constexpr unsigned int SCR_WIDTH = 800;
 constexpr unsigned int SCR_HEIGHT = 800;
 
-constexpr unsigned int CLOTH_WIDTH = 60;
-constexpr unsigned int CLOTH_HEIGHT = 100;
-constexpr float PARTICLE_THICKNESS = 0.02f;
-constexpr float GRID_CELL_SIZE = 0.04f;
+constexpr unsigned int CLOTH_WIDTH = 64;
+constexpr unsigned int CLOTH_HEIGHT = 90;
+constexpr float CLOTH_SIZE = 2.0;
+constexpr float PARTICLE_THICKNESS = CLOTH_SIZE/CLOTH_WIDTH;
+constexpr float GRID_CELL_SIZE = 2*PARTICLE_THICKNESS;
 
 using namespace glm;
 using namespace render;
@@ -31,7 +32,7 @@ int main(){
     
     set_GL_parameters();
 
-    cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, 1.2, PARTICLE_THICKNESS, state};
+    cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, CLOTH_SIZE, PARTICLE_THICKNESS, state};
     
     render::Camera camera {glm::vec3(3.0, 2.0, 1.3), 
                            glm::vec3(-1.0, -1.0, -0.3),
