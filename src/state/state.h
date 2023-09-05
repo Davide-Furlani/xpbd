@@ -18,7 +18,7 @@ namespace render {
     public:
         
         //physics
-        int iteration_per_frame = 10;
+        int iteration_per_frame = 30;
         float simulation_step_time = 1.0f/60.0f;
         glm::vec3 gravity {0.0, 0.0, -9.81};
         

@@ -46,7 +46,7 @@ int main(){
     while(!glfwWindowShouldClose(window)){
 
         state.update(window);
-        //std::cout << state.delta_time << std::endl;
+        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
         
         processInput(window, state, camera);
         
