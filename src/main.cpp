@@ -38,7 +38,7 @@ int main(){
     std::cout << vendor << std::endl;
     std::cout << renderer << std::endl;
 
-    cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, 2, PARTICLE_THICKNESS, state};
+    cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, CLOTH_SIZE, PARTICLE_THICKNESS, state};
     cloth.GPU_send_data();
     
     render::Camera camera {glm::vec3(3.0, 2.0, 1.3), 
