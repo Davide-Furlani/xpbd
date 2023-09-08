@@ -33,15 +33,15 @@ public:
             char currPath[256];
             char *currPathPtr = getcwd(currPath, sizeof(currPath));
 
-            if (currPathPtr) {
-                printf("\n");
-                std::cout << "Working at: " << currPath << std::endl;
-            }
+//            if (currPathPtr) {
+//                printf("\n");
+//                std::cout << "Working at: " << currPath << std::endl;
+//            }
             // Open file
             vsFile.open(vsFilePath);
             fsFile.open(fsFilePath);
-            printf("vs: %s\n", vsFilePath);
-            printf("fs: %s\n", fsFilePath);
+//            printf("vs: %s\n", vsFilePath);
+//            printf("fs: %s\n", fsFilePath);
             std::stringstream vsStream, fsStream;
             // Read file to data stream
             vsStream << vsFile.rdbuf();

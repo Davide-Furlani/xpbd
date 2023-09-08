@@ -14,8 +14,6 @@
 //#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include "state/state.h"
-#include "display/camera.h"
-
 
 namespace render {
 

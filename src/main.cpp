@@ -1,5 +1,4 @@
 #include <iostream>
-#include <filesystem>
 
 #include <glad.h>
 #include <GLFW/glfw3.h>
@@ -13,6 +12,9 @@
 #include "hashgrid/hashgrid.h"
 
 #include "animation/animator.h"
+
+#include "bvh/BVH.h"
+
 
 constexpr unsigned int SCR_WIDTH = 750;
 constexpr unsigned int SCR_HEIGHT = 450;
@@ -44,8 +46,8 @@ int main(){
     cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, CLOTH_SIZE, PARTICLE_THICKNESS, state};
     cloth.GPU_send_data();
     
-    render::Camera camera {glm::vec3(3.0, 2.0, 1.3), 
-                           glm::vec3(-1.0, -1.0, -0.3),
+    render::Camera camera {glm::vec3(12.0, 3.0, 4.0), 
+                           glm::vec3(-1.0, -0.3, 0.03),
                            glm::vec3(0.0, 0.0, 1.0)};
     
     Axis axis {SCR_WIDTH, SCR_HEIGHT};
@@ -53,16 +55,16 @@ int main(){
 
     // -------------------------------- Load model with Assimp --------------------------------
     Shader human_shader("resources/Shaders/anim_model.vert", "resources/Shaders/anim_model.frag");  //Build and compile shaders
-    Model human("resources/meshes/Woman/WomanDanza3_z.fbx"); //Load Model
-    Animation animation("resources/meshes/Woman/WomanDanza3_z.fbx", &human); //Animation
+    Model human("resources/meshes/Woman/WomanDanza3.fbx"); //Load Model
+    Animation animation("resources/meshes/Woman/WomanDanza3.fbx", &human); //Animation
     Animator animator(&animation); //Animator
-    
-   
+
+    BVH bvh{&human, &animation.bonePositions, camera, state}; //Create BVH structure
     
     // main render loop
     while(!glfwWindowShouldClose(window)){
         state.update(window);
-        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
+//        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
         
         processInput(window, state, camera);
         
@@ -83,6 +85,8 @@ int main(){
 //            cloth.GPU_send_data();
 //        }
         animator.UpdateAnimation(state.delta_time); //Update animation
+        bvh.modify(animator.GetBonePositions(), human.GetBoneCount()); //Update BVH structure
+        
         human_shader.use();
 
         //View and projection transformations
@@ -106,6 +110,8 @@ int main(){
         cloth.render(camera);
         axis.render(camera);
         floor.render(camera);
+        
+        bvh.flush(camera);
 
         glfwSwapBuffers(window);
 //        glFlush(); // no framerate max

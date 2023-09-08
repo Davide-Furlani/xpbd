@@ -6,24 +6,24 @@
 struct SphereBVH
 {
     string name;
-    Vec3 center;
+    glm::vec3 center;
     float radius;
     vector<Triangle*> triangles_list;
 
     bool hasParents = false;
-    Vec3* center_p1 = nullptr;
-    Vec3* center_p2 = nullptr;
+    glm::vec3* center_p1 = nullptr;
+    glm::vec3* center_p2 = nullptr;
 
-    SphereBVH(string n, Vec3 c, float r)
+    SphereBVH(string n, glm::vec3 c, float r)
     {
         name = n;
-        center = c,
-                radius = r;
+        center = c;
+        radius = r;
     }
 
 
 
-    // Check se il triangolo � nella sfera 
+    // Check se il triangolo è nella sfera 
     bool checkInSphere(Triangle t) {
         double dist = 0;
         if ((center - t.v1->Position).length() <= radius) {

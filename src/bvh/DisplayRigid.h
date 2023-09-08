@@ -1,21 +1,11 @@
 #pragma once
 #include <iostream>
+#include <glm.hpp>
 #include "Rigid.h"
-#include "GeometryData.h"
 #include "Program.h"
-#include "camera.h"
-
-//Definizione camera
-Camera cam;
-
-//Definizione luce
-struct Light
-{
-    glm::vec3 pos = glm::vec3(-5.0f, 7.0f, 6.0f);
-    glm::vec3 color = glm::vec3(0.7f, 0.7f, 1.0f);
-};
-Light sun;
-
+#include "animation/mesh.h"
+#include "display/camera.h"
+#include "state/state.h"
 
 
 struct RigidRender // Single color & Lighting
@@ -36,7 +26,7 @@ struct RigidRender // Single color & Lighting
     GLint aPtrNor;
 
     // Render any rigid body only with it's faces, color and modelVector
-    void init(std::vector<Vertex*> f, glm::vec4 c, glm::vec3 modelVec)
+    void init(std::vector<Vertex*> f, glm::vec4 c, glm::vec3 modelVec, render::Camera &cam, render::State &state)
     {
         faces = f;
         vertexCount = (int)(faces.size());
@@ -56,9 +46,9 @@ struct RigidRender // Single color & Lighting
         }
 
         //Build render program
-        Program program("Shaders/RigidVS.glsl", "Shaders/RigidFS.glsl");
+        Program program("resources/Shaders/RigidVS.glsl", "resources/Shaders/RigidFS.glsl");
         programID = program.ID;
-        std::cout << "Rigid Program ID: " << programID << std::endl;
+//        std::cout << "Rigid Program ID: " << programID << std::endl;
 
         // Generate ID of VAO and VBOs
         glGenVertexArrays(1, &vaoID);
@@ -90,7 +80,8 @@ struct RigidRender // Single color & Lighting
 
         //Projection matrix : The frustum that camera observes
         // Since projection matrix rarely changes, set it outside the rendering loop for only onec time
-        glUniformMatrix4fv(glGetUniformLocation(programID, "uniProjMatrix"), 1, GL_FALSE, &cam.uniProjMatrix[0][0]);
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)state.scr_width / (float)state.scr_height, 0.1f, 100.0f);
+        glUniformMatrix4fv(glGetUniformLocation(programID, "uniProjMatrix"), 1, GL_FALSE, &projection[0][0]);
 
         //Model Matrix : Put rigid into the world
         glm::mat4 uniModelMatrix = glm::mat4(1.0f);
@@ -98,8 +89,10 @@ struct RigidRender // Single color & Lighting
         glUniformMatrix4fv(glGetUniformLocation(programID, "uniModelMatrix"), 1, GL_FALSE, &uniModelMatrix[0][0]);
 
         //Light
-        glUniform3fv(glGetUniformLocation(programID, "uniLightPos"), 1, &(sun.pos[0]));
-        glUniform3fv(glGetUniformLocation(programID, "uniLightColor"), 1, &(sun.color[0]));
+        glm::vec3 light_pos =  glm::vec3(0.0, 0.0, 1.0);
+        glm::vec3 light_col =  glm::vec3(1.0, 1.0, 1.0);
+        glUniform3fv(glGetUniformLocation(programID, "uniLightPos"), 1, &light_pos[0]);
+        glUniform3fv(glGetUniformLocation(programID, "uniLightColor"), 1, &light_col[0]);
 
         // Cleanup
         glBindBuffer(GL_ARRAY_BUFFER, 0); // Unbined VBO
@@ -124,7 +117,7 @@ struct RigidRender // Single color & Lighting
         }
     }
 
-    void flush()
+    void flush(render::Camera &cam)
     {
         for (int i = 0; i < vertexCount; i++) {
             Vertex* v = faces[i];
@@ -141,8 +134,9 @@ struct RigidRender // Single color & Lighting
         glBufferSubData(GL_ARRAY_BUFFER, 0, vertexCount * sizeof(glm::vec3), vboNor);
 
         //View Matrix : The camera
-        cam.uniViewMatrix = glm::lookAt(cam.Position, cam.Position + cam.Front, cam.Up);
-        glUniformMatrix4fv(glGetUniformLocation(programID, "uniViewMatrix"), 1, GL_FALSE, &cam.uniViewMatrix[0][0]);
+        
+        glm::mat4 uniViewMatrix = glm::lookAt(cam.pos, cam.pos + cam.front_v, cam.up_v);
+        glUniformMatrix4fv(glGetUniformLocation(programID, "uniViewMatrix"), 1, GL_FALSE, &uniViewMatrix[0][0]);
 
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -164,26 +158,11 @@ struct BallRender
     Ball* ball;
     RigidRender render;
 
-    BallRender(Ball* b)
+    BallRender(Ball* b, render::Camera &cam, render::State &s)
     {
         ball = b;
-        render.init(ball->sphere->faces, ball->color, glm::vec3(ball->center.x, ball->center.y, ball->center.z));
+        render.init(ball->sphere->faces, ball->color, glm::vec3(ball->center.x, ball->center.y, ball->center.z), cam, s);
     }
 
-    void flush() { render.flush(); }
-};
-
-
-struct GroundRender
-{
-    Ground* ground;
-    RigidRender render;
-
-    GroundRender(Ground* g)
-    {
-        ground = g;
-        render.init(ground->faces, ground->color, glm::vec3(ground->position.x, ground->position.y, ground->position.z));
-    }
-
-    void flush() { render.flush(); }
+    void flush(render::Camera &cam) { render.flush(cam); }
 };
