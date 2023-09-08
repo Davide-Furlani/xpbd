@@ -59,7 +59,7 @@ public:
         glm::vec3 e2 = v1->Position - v3->Position;
         glm::vec3 cr = glm::cross(e1, e2);
 
-        return (cr.length() / 2);
+        return (glm::length(cr) / 2);
     }
 
     glm::vec3 centroid() {
@@ -80,16 +80,16 @@ public:
         return n;
     }
 
-    //Data una particella del vestito calcola la posizione del vertice pi� vicino
+    //Data una particella del vestito calcola la posizione del vertice più vicino
     glm::vec3 nearest_vertex(glm::vec3* particle_position) {
-        float distance = (*particle_position - v1->Position).length();
+        float distance = glm::length(*particle_position - v1->Position);
         glm::vec3 result = v1->Position;
 
-        float new_distance = (*particle_position - v2->Position).length();
+        float new_distance = glm::length(*particle_position - v2->Position);
         if (new_distance < distance)
             result = v2->Position;
 
-        new_distance = (*particle_position - v3->Position).length();
+        new_distance = glm::length(*particle_position - v3->Position);
         if (new_distance < distance)
             result = v3->Position;
 
