@@ -82,6 +82,11 @@ namespace render {
         front_v = normalize(rotate(front_v, pitch, cross(front_v, up_v)));
         front_v = normalize(rotateZ(front_v, -yaw));
     }
+
+    mat4 Camera::GetViewMatrix() const
+    {
+        return glm::lookAt(this->pos, this->pos + this->front_v, this->up_v);
+    }
 }
 
 

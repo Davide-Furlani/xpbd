@@ -1,4 +1,5 @@
 #include <iostream>
+#include <filesystem>
 
 #include <glad.h>
 #include <GLFW/glfw3.h>
@@ -11,11 +12,13 @@
 #include "display/floor.h"
 #include "hashgrid/hashgrid.h"
 
+#include "animation/animator.h"
+
 constexpr unsigned int SCR_WIDTH = 750;
 constexpr unsigned int SCR_HEIGHT = 450;
 
-constexpr unsigned int CLOTH_WIDTH  = 64;
-constexpr unsigned int CLOTH_HEIGHT = 90;
+constexpr unsigned int CLOTH_WIDTH  = 32;
+constexpr unsigned int CLOTH_HEIGHT = 32;
 constexpr float CLOTH_SIZE = 2.0;
 constexpr float PARTICLE_THICKNESS = CLOTH_SIZE/CLOTH_WIDTH;
 constexpr float GRID_CELL_SIZE = 2*PARTICLE_THICKNESS;
@@ -47,6 +50,12 @@ int main(){
     
     Axis axis {SCR_WIDTH, SCR_HEIGHT};
     Floor floor {SCR_WIDTH, SCR_HEIGHT};
+
+    // -------------------------------- Load model with Assimp --------------------------------
+    Shader human_shader("resources/Shaders/anim_model.vert", "resources/Shaders/anim_model.frag");  //Build and compile shaders
+    Model human("resources/meshes/Woman/WomanDanza3_z.fbx"); //Load Model
+    Animation animation("resources/meshes/Woman/WomanDanza3_z.fbx", &human); //Animation
+    Animator animator(&animation); //Animator
     
    
     
@@ -73,8 +82,27 @@ int main(){
 //            cloth.GPU_retrieve_data();
 //            cloth.GPU_send_data();
 //        }
-        cloth.simulate_XPBD(state, grid);
+        animator.UpdateAnimation(state.delta_time); //Update animation
+        human_shader.use();
+
+        //View and projection transformations
+        glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)state.scr_width / (float)state.scr_height, 0.1f, 100.0f);
+        glm::mat4 view = camera.GetViewMatrix();
+        human_shader.setMat4("projection", projection);
+        human_shader.setMat4("view", view);
+
+        //Compute animation
+        auto transforms = animator.GetFinalBoneMatrices();
+        for (int i = 0; i < transforms.size(); ++i)
+            human_shader.setMat4("finalBonesMatrices[" + std::to_string(i) + "]", transforms[i]);
+
+        //Render the loaded model
+        glm::mat4 modelMatrix = glm::mat4(1.0f);
+        human_shader.setMat4("model", modelMatrix);
+        human.Draw(human_shader);
         
+        cloth.simulate_XPBD(state, grid);
+
         cloth.render(camera);
         axis.render(camera);
         floor.render(camera);

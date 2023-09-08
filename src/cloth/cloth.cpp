@@ -17,6 +17,7 @@
 #include "constraints/constraint.h"
 #include "display/display.h"
 #include "state/state.h"
+#include "omp.h"
 
 #define N_SSBO 0
 #define CC_SSBO 1
@@ -289,7 +290,7 @@ namespace cloth {
         std::vector<float> v_array {};
           
         for(auto i : verts){
-            Node& n = nodes.at(i);
+            Node& n = nodes[i];
             v_array.emplace_back(n.pos.x);
             v_array.emplace_back(n.pos.y);
             v_array.emplace_back(n.pos.z);
@@ -311,18 +312,18 @@ namespace cloth {
         }
         
         for(auto t : up_left_tris){
-            Node& n1 = nodes.at(t.a);
-            Node& n2 = nodes.at(t.b);
-            Node& n3 = nodes.at(t.c);
+            Node& n1 = nodes[t.a];
+            Node& n2 = nodes[t.b];
+            Node& n3 = nodes[t.c];
             normal = cross(n2.pos - n1.pos, n3.pos - n1.pos);
             n1.n += normal;
             n2.n += normal;
             n3.n += normal;
         }
         for(auto t : low_right_tris){
-            Node& n1 = nodes.at(t.a);
-            Node& n2 = nodes.at(t.b);
-            Node& n3 = nodes.at(t.c);
+            Node& n1 = nodes[t.a];
+            Node& n2 = nodes[t.b];
+            Node& n3 = nodes[t.c];
             normal = cross(n2.pos - n1.pos, n3.pos - n1.pos);
             n1.n += normal;
             n2.n += normal;
@@ -455,10 +456,10 @@ namespace cloth {
         for (auto& c : this->constraints) {
             float alpha = c.compliance / time_step / time_step;
             
-            if (this->nodes.at(c.a_node).w + this->nodes.at(c.b_node).w == 0.0)
+            if (this->nodes[c.a_node].w + this->nodes[c.b_node].w == 0.0)
                 continue;
             
-            vec3 distance = this->nodes.at(c.a_node).pos - this->nodes.at(c.b_node).pos;
+            vec3 distance = this->nodes[c.a_node].pos - this->nodes[c.b_node].pos;
             float abs_distance = sqrtf(powf(distance.x,2) + powf(distance.y,2) + powf(distance.z,2));
 
             if (abs_distance == 0.0)
@@ -467,13 +468,13 @@ namespace cloth {
 
             float rest_len = c.rest_dist;
             float error = abs_distance - rest_len;
-            float correction = -error / (this->nodes.at(c.a_node).w + nodes.at(c.b_node).w + alpha);
+            float correction = -error / (this->nodes[c.a_node].w + nodes[c.b_node].w + alpha);
 
-            float first_corr = correction * this->nodes.at(c.a_node).w;
-            float second_corr = -correction * this->nodes.at(c.b_node).w;
+            float first_corr = correction * this->nodes[c.a_node].w;
+            float second_corr = -correction * this->nodes[c.b_node].w;
 
-            this->nodes.at(c.a_node).pos += distance * first_corr;
-            this->nodes.at(c.b_node).pos += distance * second_corr;
+            this->nodes[c.a_node].pos += distance * first_corr;
+            this->nodes[c.b_node].pos += distance * second_corr;
         }
     }
     
@@ -495,7 +496,6 @@ namespace cloth {
     void Cloth::GPU_retrieve_data(){
         //nodes
         glGetNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
-        int franco = 0;
     }
     
     void Cloth::GPU_XPBD_predict(float time_step, glm::vec3 gravity, float max_velocity) {
@@ -529,12 +529,12 @@ namespace cloth {
         
         for(int i=0; i<passes; i++){
             set_start = set_end;
-            set_end += (int)constr_sets.at(i).size();
+            set_end += (int)constr_sets[i].size();
             this->compute_solve_coloring_constraints.setInt("set_start", set_start);
             this->compute_solve_coloring_constraints.setInt("set_end", set_end);
             
             this->compute_solve_coloring_constraints.use();
-            glDispatchCompute(std::ceil(constr_sets.at(i).size()/32), 1, 1);
+            glDispatchCompute(std::ceil(constr_sets[i].size()/32), 1, 1);
             glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
         
@@ -546,7 +546,7 @@ namespace cloth {
         
         int first_constr = 0;
         for(int i=0; i<coloring_passes; i++){
-            first_constr += (int)constr_sets.at(i).size();
+            first_constr += (int)constr_sets[i].size();
         }
         this->compute_solve_jacobi_constraints.setInt("first_constr", first_constr);
 
@@ -557,7 +557,7 @@ namespace cloth {
     }
 
     void Cloth::GPU_XPBD_add_jacobi_correction(){
-        float magic_number = 0.2;
+        float magic_number = 0.3;
         this->compute_jacobi_add_correction.setFloat("magic_number", magic_number);
         
         this->compute_jacobi_add_correction.use();
@@ -580,19 +580,19 @@ namespace cloth {
         }
 
         for(auto& n: this->nodes){
-            grid.cells.at(grid.hashIndex(n.pos))++; //incremento il contatore di particelle della cella in cui sta il nodo
+            grid.cells[grid.hashIndex(n.pos)]++; //incremento il contatore di particelle della cella in cui sta il nodo
         }
 
         for(int i=1; i<grid.cells.size(); i++){
-            grid.cells.at(i) += grid.cells.at(i-1);  // riempio tutte le celle della hashgrid
+            grid.cells[i] += grid.cells[i-1];  // riempio tutte le celle della hashgrid
         }
 
         for(int i=0; i<this->nodes.size(); i++){
 
-            int hash_index = grid.hashIndex(this->nodes.at(i).pos);
+            int hash_index = grid.hashIndex(this->nodes[i].pos);
 
-            grid.cells.at(hash_index)--;                            // sistemo i puntatori delle celle
-            grid.nodes_indexes.at(grid.cells.at(hash_index)) = i;   // metto le particelle nel loro array
+            grid.cells[hash_index]--;                            // sistemo i puntatori delle celle
+            grid.nodes_indexes[grid.cells[hash_index]] = i;   // metto le particelle nel loro array
         }
 
 
@@ -600,55 +600,59 @@ namespace cloth {
     
     void Cloth::queryAll(hashgrid::HashGrid& grid, float max_travel_distance) {
         float max_dist_2 = max_travel_distance * max_travel_distance;
+        #pragma omp parallel for
         for(int node=0; node<this->nodes.size(); node++){
-            int min_x = grid.intCoord(this->nodes.at(node).pos.x - max_travel_distance);
-            int max_x = grid.intCoord(this->nodes.at(node).pos.x + max_travel_distance);
-            int min_y = grid.intCoord(this->nodes.at(node).pos.y - max_travel_distance);
-            int max_y = grid.intCoord(this->nodes.at(node).pos.y + max_travel_distance);
-            int min_z = grid.intCoord(this->nodes.at(node).pos.z - max_travel_distance);
-            int max_z = grid.intCoord(this->nodes.at(node).pos.z + max_travel_distance);
+            int min_x = grid.intCoord(this->nodes[node].pos.x - max_travel_distance);
+            int max_x = grid.intCoord(this->nodes[node].pos.x + max_travel_distance);
+            int min_y = grid.intCoord(this->nodes[node].pos.y - max_travel_distance);
+            int max_y = grid.intCoord(this->nodes[node].pos.y + max_travel_distance);
+            int min_z = grid.intCoord(this->nodes[node].pos.z - max_travel_distance);
+            int max_z = grid.intCoord(this->nodes[node].pos.z + max_travel_distance);
 
-            this->nodes.at(node).neighbours.clear();
+            this->nodes[node].neighbours.clear();
 
-
+            
             for(int x=min_x; x<max_x; ++x)              // qui scorro tutte le celle in cui posso trovare particelle
                 for(int y=min_y; y<max_y; ++y)          // con cui la particella in esame potrebbe collidere
                     for(int z=min_z; z<max_z; ++z){     // la complessità è cubica nel raggio di possibile collisione (max_travel_distance)
                         int hashcoor = grid.hashCoords(x, y, z);
-                        for (int i=grid.cells.at(hashcoor); i< grid.cells.at(hashcoor+1); i++){
+                        for (int i=grid.cells[hashcoor]; i< grid.cells[hashcoor+1]; i++){
                             if (i == node)
                                 continue;
-                            vec3 dist = this->nodes.at(node).pos - this->nodes.at(grid.nodes_indexes.at(i)).pos;
+                            vec3 dist = this->nodes[node].pos - this->nodes[grid.nodes_indexes[i]].pos;
                             float dist_2 = (powf(dist.x,2) + powf(dist.y,2) + powf(dist.z,2));
                             if (dist_2 <=max_dist_2)
-                                this->nodes.at(node).neighbours.push_back(grid.nodes_indexes.at(i));
+                                this->nodes[node].neighbours.push_back(grid.nodes_indexes[i]);
                         }
                     }
         }
     }
     void Cloth::HG_solve_collisions(){
         float thickness_2 = this->node_thickness * this->node_thickness;
+
+        #pragma omp parallel for
         for(auto& n: nodes) {
             if (n.w == 0.0)
                 continue;
             for(int n_idx: n.neighbours){
                 
-                if(this->nodes.at(n_idx).w == 0.0) {
+                if(this->nodes[n_idx].w == 0.0) {
                     continue;
                 }
 
-                vec3 diff = this->nodes.at(n_idx).pos - n.pos;
+                vec3 diff = this->nodes[n_idx].pos - n.pos;
                 float dist_2 = diff.x*diff.x + diff.y*diff.y + diff.z*diff.z;
 
                 if(dist_2 > thickness_2 || dist_2 == 0.0) {
                     continue;
                 }
 
-                vec3 nat_dist = n.nat_pos - this->nodes.at(n_idx).nat_pos;
+                vec3 nat_dist = n.nat_pos - this->nodes[n_idx].nat_pos;
                 float nat_dist_2 = nat_dist.x*nat_dist.x + nat_dist.y*nat_dist.y + nat_dist.z*nat_dist.z;
                 if(dist_2 > nat_dist_2) {
                     continue;
                 }
+
 
                 float min_dist = n.thickness;
                 if(nat_dist_2 < thickness_2)
@@ -657,10 +661,10 @@ namespace cloth {
                 float dist = sqrtf(dist_2);
                 vec3 correction = diff * ((min_dist-dist)/dist);
                 n.pos += correction * (-0.5f);
-                this->nodes.at(n_idx).pos += correction * (0.5f);
+                this->nodes[n_idx].pos += correction * (0.5f);
 
                 vec3 n1_vel = n.pos - n.prev_pos;
-                vec3 n2_vel = this->nodes.at(n_idx).pos - this->nodes.at(n_idx).prev_pos;
+                vec3 n2_vel = this->nodes[n_idx].pos - this->nodes[n_idx].prev_pos;
 
                 vec3 av_vel = (n1_vel + n2_vel) * 0.5f;
 
@@ -668,7 +672,7 @@ namespace cloth {
                 n2_vel = av_vel - n2_vel;
 
                 n.pos += n1_vel * this->self_friction;
-                this->nodes.at(n_idx).pos += n2_vel * this->self_friction;
+                this->nodes[n_idx].pos += n2_vel * this->self_friction;
             }
         }
     }

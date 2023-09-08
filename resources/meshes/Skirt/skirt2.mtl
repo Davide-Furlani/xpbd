@@ -1,0 +1,14 @@
+# Blender 3.4.1 MTL File: 'None'
+# www.blender.org
+
+newmtl LEATHER
+Ka 0.257353 0.257353 0.257353
+Ks 0.389706 0.389706 0.389706
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 3
+map_Kd LSKIRT_Material.001_BaseColor.png
+map_Ns LSKIRT_Material.001_Roughness.png
+map_refl LSKIRT_Material.001_Metallic.png
+map_Bump -bm 1.000000 LSKIRT_Material.001_Normal.png

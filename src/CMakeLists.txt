@@ -87,12 +87,14 @@ add_executable(cloth_sim
 target_include_directories(cloth_sim PRIVATE
         ${CMAKE_SOURCE_DIR}/src
         ${CMAKE_SOURCE_DIR}/third_party/glfw-3.3.8
+        ${CMAKE_SOURCE_DIR}/third_party/assimp
         ${CMAKE_SOURCE_DIR}/third_party/glad
         ${CMAKE_SOURCE_DIR}/third_party/glm
         ${CMAKE_SOURCE_DIR}/third_party/stb)
 
 target_link_libraries(cloth_sim PRIVATE
         glfw
+        assimp
         glad
         node
         hashgrid

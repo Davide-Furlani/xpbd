@@ -42,6 +42,8 @@ namespace render {
         void down(State& state);
 
         void update_rotation(State& state);
+
+        [[nodiscard]] mat4 GetViewMatrix() const;
         
     };
 }
