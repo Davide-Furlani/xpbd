@@ -26,9 +26,9 @@ struct SphereBVH
     // Check se il triangolo è nella sfera 
     bool checkInSphere(Triangle t) {
         double dist = 0;
-        if ((center - t.v1->Position).length() <= radius) {
-            if ((center - t.v2->Position).length() <= radius) {
-                if ((center - t.v3->Position).length() <= radius)
+        if (glm::length(center - t.v1->Position) <= radius) {
+            if (glm::length(center - t.v2->Position) <= radius) {
+                if (glm::length(center - t.v3->Position) <= radius)
                     return true;
             }
         }
