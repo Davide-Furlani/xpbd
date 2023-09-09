@@ -40,7 +40,7 @@ namespace cloth {
         pin2_index = columns-1;
         
         float z_constant = 3.0;
-        vec3 vel {0.0};
+        vec3 vel {0.0, 0.0, 0.001};
         vec3 normal {0.0, 0.0, 1.0};
         
         size = 1/size;
@@ -92,7 +92,7 @@ namespace cloth {
         this->cloth_shader.setMat4("uniProjMatrix", projection);
 
         this->cloth_shader.setInt("uniTex", 0);
-        this->cloth_shader.setVec3("uniLightPos", glm::vec3(0.0, 0.0, 1.0));
+        this->cloth_shader.setVec3("uniLightPos", glm::vec3(-1.0, -1.0, 3.0));
         this->cloth_shader.setVec3("uniLightColor", glm::vec3(1.0, 1.0, 1.0));
         
         // buffer per compute shaders
@@ -332,6 +332,7 @@ namespace cloth {
         
         for (auto& n : nodes) {
             n.n = normalize(n.n);
+            n.n = -n.n;
         }
     }
     

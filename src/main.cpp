@@ -46,9 +46,9 @@ int main(){
     cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, CLOTH_SIZE, PARTICLE_THICKNESS, state};
     cloth.GPU_send_data();
     
-    render::Camera camera {glm::vec3(12.0, 3.0, 4.0), 
-                           glm::vec3(-1.0, -0.3, 0.03),
-                           glm::vec3(0.0, 0.0, 1.0)};
+    render::Camera camera {glm::vec3(0.0, -3.0, 12.0), 
+                           glm::vec3(0.0, 0.04, -1),
+                           glm::vec3(0.0, 1.0, 0.0)};
     
     Axis axis {SCR_WIDTH, SCR_HEIGHT};
     Floor floor {SCR_WIDTH, SCR_HEIGHT};

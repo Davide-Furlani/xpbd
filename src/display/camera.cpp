@@ -80,12 +80,12 @@ namespace render {
             pitch = min_pitch;
 
         front_v = normalize(rotate(front_v, pitch, cross(front_v, up_v)));
-        front_v = normalize(rotateZ(front_v, -yaw));
+        front_v = normalize(rotate(front_v, -yaw, up_v));
     }
 
     mat4 Camera::GetViewMatrix() const
     {
-        return glm::lookAt(this->pos, this->pos + this->front_v, this->up_v);
+        return lookAt(this->pos, this->pos + this->front_v, this->up_v);
     }
 }
 
