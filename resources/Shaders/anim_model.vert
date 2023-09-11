@@ -9,7 +9,7 @@ layout(location = 5) in ivec4 boneIds;
 layout(location = 6) in vec4 weights;
 
 layout(std430, binding = 7) buffer vertexOut{
-    double data[];
+    float data[];
 };
 
 uniform mat4 projection;

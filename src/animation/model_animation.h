@@ -24,7 +24,7 @@
 #include "assimp_glm_helpers.h"
 #include "animdata.h"
 
-
+#define HUMAN_MESH_SSBO 7
 
 using namespace std;
 
@@ -34,17 +34,31 @@ class Model
 public:
 	// model data 
 	vector<Texture> textures_loaded;	// stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
-	vector<Mesh>    meshes;
+	vector<Mesh>meshes;
 	string directory;
 	bool gammaCorrection;
 	std::map<string, BoneInfo> m_BoneInfoMap; //Mappa che tiene in memoria le funzioni relative al Bone
 	int m_BoneCounter = 0; //Incrementa ogni volta che trova un bone
+    
+    GLuint mesh_ssbo;
+    std::vector<glm::vec3> gpuResult;
+    
 
 
 	// constructor, expects a filepath to a 3D model.
 	Model(string const& path, bool gamma = false) : gammaCorrection(gamma)
 	{
 		loadModel(path);
+
+//        std::cout << this->meshes[0].vertices[749].Position.x << "-" << this->meshes[0].vertices[749].Position.y << "-" << this->meshes[0].vertices[749].Position.z << std::endl;
+//
+//        gpuResult.resize(this->meshes[0].vertices.size());
+//        
+//        glGenBuffers(1, &(this->mesh_ssbo));
+//        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->mesh_ssbo);
+//        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::vec3) * gpuResult.size(), gpuResult.data(), GL_DYNAMIC_READ);
+//        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, HUMAN_MESH_SSBO, this->mesh_ssbo);
+//        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 	}
 
 	// draws the model, and thus all its meshes
@@ -63,6 +77,18 @@ public:
 		printf("Size indices: %lu\n", meshes[0].indices.size());
 		printf("Size triangles: %lu\n\n", meshes[0].triangles.size());
 	}
+    
+//    void get_GPU_mesh_data(){
+//
+//        //Save data from GPU (Linear blend skinning)
+//        glGetNamedBufferSubData(this->mesh_ssbo, 0, sizeof(glm::vec3)*this->meshes[0].vertices.size(), this->gpuResult.data());
+//
+////        std::cout << gpuResult[749].x << "-" << gpuResult[749].y << "-" << gpuResult[749].z << std::endl;
+//
+//        //Update coordinates
+//        for (int j = 0; j < gpuResult.size(); j++)
+//            this->meshes[0].vertices[j].Position = gpuResult[j];
+//    }
 
 
 private:

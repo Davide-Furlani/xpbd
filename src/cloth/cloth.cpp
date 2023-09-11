@@ -40,7 +40,7 @@ namespace cloth {
         pin2_index = columns-1;
         
         float z_constant = 3.0;
-        vec3 vel {0.0, 0.0, 0.001};
+        vec3 vel {0.0, 0.0, 0.01};
         vec3 normal {0.0, 0.0, 1.0};
         
         size = 1/size;
@@ -628,6 +628,7 @@ namespace cloth {
                     }
         }
     }
+    
     void Cloth::HG_solve_collisions(){
         float thickness_2 = this->node_thickness * this->node_thickness;
 

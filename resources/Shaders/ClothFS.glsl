@@ -37,9 +37,10 @@ void main()
 
     // final color
     vec4 t_col4 = texture(uniTex, texCoord);
+//    vec4 t_col4 = vec4(1.0, 1.0, 1.0, 1.0);
     vec3 t_col = vec3(t_col4.x, t_col4.y, t_col4.z);
     vec3 result = (ambient + diffuse + specular) * t_col;
     color = vec4(result, 1.0f);
     
-//    color = vec4(normal, 0.0);
+//    color = vec4(1.0, 1.0, 1.0, 1.0);
 }

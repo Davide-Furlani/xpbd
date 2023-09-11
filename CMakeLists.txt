@@ -50,6 +50,7 @@ endif ()
 # --- Add source files ---
 add_subdirectory(third_party/glm)
 add_subdirectory(third_party/glfw-3.3.8)
+add_subdirectory(third_party/assimp-5.2.5)
 add_subdirectory(src)
 
 # --- Add test files ---
