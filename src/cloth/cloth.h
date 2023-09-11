@@ -55,7 +55,6 @@ public:
     Shader compute_solve_coloring_constraints {"resources/gpu_kernels/solve_coloring_constraints.comp"};
     Shader compute_solve_jacobi_constraints {"resources/gpu_kernels/solve_jacobi_constraints.comp"};
     Shader compute_jacobi_add_correction {"resources/gpu_kernels/jacobi_add_correction.comp"};
-//    Shader compute_HG_collisions {""};
     Shader compute_update_velocities {"resources/gpu_kernels/update_velocities.comp"};
     
     

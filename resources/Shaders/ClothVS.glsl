@@ -1,8 +1,8 @@
 #version 460 core
 
 layout (location = 0) in vec3 vsPosition;
-layout (location = 1) in vec3 vsNormal;
-layout (location = 2) in vec2 vsTexCoord;
+layout (location = 1) in vec2 vsTexCoord;
+layout (location = 2) in vec3 vsNormal;
 
 out vec3 position;
 out vec2 texCoord;

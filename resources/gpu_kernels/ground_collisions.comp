@@ -23,7 +23,7 @@ struct Node {
     Vec_pointer neighbors_vector_do_not_use;
 };
 
-layout(std430, binding = 0) buffer nodesSSBO {
+layout(std430, binding = 8) buffer nodesSSBO {
     Node nodes[];
 };
 
@@ -31,11 +31,11 @@ void main(){
 
     uint id = gl_GlobalInvocationID.x;
     
-    if(nodes[id].pos.z < 0.5*nodes[id].thickness && nodes[id].w != 0.0) {
+    if(nodes[id].pos.y < -8.0 && nodes[id].w != 0.0) {
         float damping = 0.02;
         vec3 diff = nodes[id].pos - nodes[id].prev_pos;
         nodes[id].pos += diff * -damping;
-        nodes[id].pos.z = 0.5 * nodes[id].thickness;
+        nodes[id].pos.y = -8.0 + 0.5 * nodes[id].thickness;
     }
     
 }

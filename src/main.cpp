@@ -33,7 +33,7 @@ using namespace cloth;
 int main(){
 
     hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT, CLOTH_WIDTH*CLOTH_HEIGHT};
-    render::State state {SCR_WIDTH, SCR_HEIGHT, CPU};
+    render::State state {SCR_WIDTH, SCR_HEIGHT, GPU};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
     set_GL_parameters();
@@ -62,9 +62,14 @@ int main(){
 
 
     Model model_cloth("resources/meshes/Top/Top3.obj"); //Load model
-    ClothModel cloth_top(&model_cloth, &human, glm::vec3(0.09f, -3.4f, -0.7f), glm::vec3(6.76f, 6.9f, 6.2f), 0.2f); //Convert model into cloth
+    ClothModel cloth_top(&model_cloth, &human, glm::vec3(0.09f, -3.4f, -0.7f), glm::vec3(6.76f, 6.9f, 6.2f), 0.1f, 8, 9, 10); //Convert model into cloth
     cloth_top.init_render_data(camera, state);
 //    cloth.GPU_send_data();
+
+//    Model model_cloth("resources/meshes/Tshirt/TshirtTposeBig.obj");
+//    ClothModel cloth_top(&model_cloth, &human, glm::vec3(0.0f, -1.5f, 0.7f), glm::vec3(0.044f, 0.034f, 0.042f), 0.2f); //Convert model into cloth
+//    cloth_top.init_render_data(camera, state);
+
 
     // -------------------------------- Cloth --------------------------------    
    
@@ -91,7 +96,7 @@ int main(){
     // main render loop
     while(!glfwWindowShouldClose(window)){
         state.update(window);
-//        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
+        std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
         
         processInput(window, state, camera);
         
@@ -100,19 +105,14 @@ int main(){
 //        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
 
         cloth_top.proces_input(window);
-//        if(state.current_time_from_start > 5){
-//            cloth.unpin2();
-//        }
-//        if(state.current_time_from_start > 5){
-//            cloth.unpin1();
-//        }
+
     
 //        if(state.sym_type == GPU){
 //            cloth.GPU_retrieve_data();
 //            cloth.GPU_send_data();
 //        }
-        if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
-            animator.UpdateAnimation(state.delta_time); //Update animation
+//        if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
+            animator.UpdateAnimation(state.simulation_step_time); //Update animation
         bvh.modify(animator.GetBonePositions(), human.GetBoneCount()); //Update BVH structure
         
         human_shader.use();

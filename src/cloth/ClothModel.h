@@ -8,9 +8,6 @@
 #include "constraints/constraint.h"
 #include "bvh/Box.h"
 
-#define N_SSBO 0
-#define CC_SSBO 1
-#define JC_SSBO 2
 
 #define COLORING 0
 #define JACOBI 1
@@ -51,20 +48,41 @@ public:
     GLint aPtrPos;
     GLint aPtrTex;
     GLint aPtrNor;
+    
+    
+    int N_SSBO;
+    int CC_SSBO;
+    int JC_SSBO;
+
+    GLuint ssbo_nodes;
+    GLuint ssbo_cconstrs;
+    GLuint ssbo_jconstrs;
+
+    Shader compute_predict {"resources/gpu_kernels/next_predict_pos.comp"};
+    Shader TMP_compute_ground_collisions {"resources/gpu_kernels/ground_collisions.comp"};
+    Shader compute_solve_coloring_constraints {"resources/gpu_kernels/solve_coloring_constraints.comp"};
+    Shader compute_solve_jacobi_constraints {"resources/gpu_kernels/solve_jacobi_constraints.comp"};
+    Shader compute_jacobi_add_correction {"resources/gpu_kernels/jacobi_add_correction.comp"};
+    Shader compute_update_velocities {"resources/gpu_kernels/update_velocities.comp"};
 
     const float stretching_compliance = 0.0f;
     const float bending_compliance = 0.03f;
     
     float node_thickness;
 
-    ClothModel(Model *m, Model *h, glm::vec3 t, glm::vec3 s, float thickness) {
+    ClothModel(Model *m, Model *h, glm::vec3 t, glm::vec3 s, float thickness, int n_ssbo_i, int cc_ssbo_i, int jc_ssbo_i) {
         modelCloth = m;
         associatedHuman = h;
         translation = t;
         scaling = s;
         node_thickness = thickness;
         box = new Box();
+        N_SSBO = n_ssbo_i;
+        CC_SSBO = cc_ssbo_i;
+        JC_SSBO = jc_ssbo_i;
         initClothModel(thickness);
+        
+        init_gpu_data();
     }
 
 
@@ -137,10 +155,42 @@ public:
 
         constraints_coloring();
         
-//        pin_top();
 
     }
 
+    void init_gpu_data(){
+        // buffer per compute shaders
+        // nodi
+        glGenBuffers(1, &(this->ssbo_nodes));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_nodes);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Node)*this->nodes.size(), this->nodes.data(), GL_DYNAMIC_READ);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, N_SSBO, this->ssbo_nodes);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+        // coloring constraint
+        glGenBuffers(1, &(this->ssbo_cconstrs));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_cconstrs);
+        std::vector<Constraint> sets_unrolled = {};
+        for(auto set : this->constr_sets){
+            for(auto c : set){
+                sets_unrolled.push_back(c);
+            }
+        }
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Constraint)*sets_unrolled.size(), sets_unrolled.data(), GL_STATIC_READ);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, CC_SSBO, this->ssbo_cconstrs);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+//        std::cout << this->constr_sets.size() << ", " << sets_unrolled.size() << std::endl;
+
+        // jacobi constraints
+        glGenBuffers(1, &(this->ssbo_jconstrs));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_jconstrs);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Constraint)*this->springs.size(), this->springs.data(), GL_STATIC_READ);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, JC_SSBO, this->ssbo_jconstrs);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    }
+    
     // -------------------------------- Init render data --------------------------------
     void init_render_data(render::Camera &cam, render::State &s) {
         int nodeCount = (int) (this->faces.size());
@@ -245,6 +295,16 @@ public:
 
     void destroy() {
         cloth_shader.destroy();
+        glDeleteBuffers(1, &ssbo_nodes);
+        glDeleteBuffers(1, &ssbo_cconstrs);
+        glDeleteBuffers(1, &ssbo_jconstrs);
+        this->cloth_shader.destroy();
+        this->compute_predict.destroy();
+        this->TMP_compute_ground_collisions.destroy();
+        this->compute_solve_coloring_constraints.destroy();
+        this->compute_solve_jacobi_constraints.destroy();
+        this->compute_jacobi_add_correction.destroy();
+        this->compute_update_velocities.destroy();
     }
 
     void flush(render::Camera &cam, render::State &state) {
@@ -257,7 +317,7 @@ public:
             vboPos[i] = glm::vec3(n->pos.x, n->pos.y, n->pos.z);
             vboNor[i] = glm::vec3(n->n.x, n->n.y, n->n.z);
         }
-
+        computeNormal();
         cloth_shader.use();
 
         glBindVertexArray(vaoID);
@@ -424,15 +484,6 @@ public:
 //        }
 //    }
 
-    void pin_top() {
-        nodes[49].m = std::numeric_limits<float>::infinity();
-        nodes[49].w = 0;
-        nodes[60].m = std::numeric_limits<float>::infinity();
-        nodes[60].w = 0;
-        nodes[200].m = std::numeric_limits<float>::infinity();
-        nodes[200].w = 0;
-    }
-
     void proces_input(GLFWwindow *window) {
         if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS) {
             solve_type = COLORING;
@@ -525,8 +576,8 @@ public:
     void simulate_XPBD(render::State &s, hashgrid::HashGrid &grid, BVH &bvh) {
         if (s.sym_type == CPU)
             CPU_SIM(s, grid, bvh);
-//        if(s.sym_type == GPU)
-//            GPU_SIM(s, grid, bvh);
+        if(s.sym_type == GPU)
+            GPU_SIM(s, grid, bvh);
     }
 
     void CPU_SIM(render::State &s, hashgrid::HashGrid &grid, BVH &bvh) {
@@ -542,40 +593,41 @@ public:
             XPBD_predict(time_step, s.gravity, max_velocity);
             XPBD_solve_ground_collisions();
             XPBD_solve_constraints(time_step);
-            collisionResponse_ray_triangle(&bvh);
             HG_solve_collisions();
+            collisionResponse_ray_triangle(&bvh);
             XPBD_update_velocity(time_step);
         }
     }
 
-//    void GPU_SIM(render::State& s, hashgrid::HashGrid& grid){
-//
-//        float time_step = s.simulation_step_time/s.iteration_per_frame;
-//        float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
-//        float max_travel_distance = max_velocity * s.simulation_step_time;
-//        updateHashGrid(grid);
-//        queryAll(grid, max_travel_distance);
-//        GPU_send_data();
-//        for(int i=0; i< s.iteration_per_frame; ++i){
-//            GPU_XPBD_predict(time_step, s.gravity, max_velocity);
-//            GPU_solve_ground_collisions();
-//            if(solve_type == COLORING) {
-//                GPU_XPBD_solve_constraints_coloring(time_step, 0);
-//            }else if(solve_type == JACOBI) {
-//                GPU_XPBD_solve_constraints_jacobi(time_step, 0);
-//                GPU_XPBD_add_jacobi_correction();
-//            }else if (solve_type == HYBRID) {
-//                GPU_XPBD_solve_constraints_coloring(time_step, 4);
-//                GPU_XPBD_solve_constraints_jacobi(time_step, 4);
-//                GPU_XPBD_add_jacobi_correction();
-//            }
-//            GPU_retrieve_data();
-//            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
-//            GPU_send_data();
-//            GPU_XPBD_update_velocity(time_step);
-//        }
-//        GPU_retrieve_data();
-//    }
+    void GPU_SIM(render::State& s, hashgrid::HashGrid& grid, BVH &bvh){
+
+        float time_step = s.simulation_step_time/s.iteration_per_frame;
+        float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
+        float max_travel_distance = max_velocity * s.simulation_step_time;
+        updateHashGrid(grid);
+        queryAll(grid, max_travel_distance);
+        GPU_send_data();
+        for(int i=0; i< s.iteration_per_frame; ++i){
+            GPU_XPBD_predict(time_step, s.gravity, max_velocity);
+            GPU_solve_ground_collisions();
+            if(solve_type == COLORING) {
+                GPU_XPBD_solve_constraints_coloring(time_step, 0);
+            }else if(solve_type == JACOBI) {
+                GPU_XPBD_solve_constraints_jacobi(time_step, 0);
+                GPU_XPBD_add_jacobi_correction();
+            }else if (solve_type == HYBRID) {
+                GPU_XPBD_solve_constraints_coloring(time_step, 4);
+                GPU_XPBD_solve_constraints_jacobi(time_step, 4);
+                GPU_XPBD_add_jacobi_correction();
+            }
+            GPU_retrieve_data();
+            HG_solve_collisions();
+            collisionResponse_ray_triangle(&bvh);
+            GPU_send_data();
+            GPU_XPBD_update_velocity(time_step);
+        }
+        GPU_retrieve_data();
+    }
 
     void XPBD_predict(float t, glm::vec3 g, float max_velocity) {
         /** Nodes **/
@@ -600,7 +652,7 @@ public:
                 float damping = 0.02;
                 vec3 diff = n.pos - n.prev_pos;
                 n.pos += diff * -damping;
-                n.pos.y = 0.5f * n.thickness;
+                n.pos.y = -8.0 + 0.5f * n.thickness;
             }
         }
     }
@@ -641,91 +693,91 @@ public:
         }
     }
 
-//    void GPU_send_data(){
-//        //nodes
-//        glNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
-//
-//    }
+    void GPU_send_data(){
+        //nodes
+        glNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
 
-//    void GPU_retrieve_data(){
-//        //nodes
-//        glGetNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
-//    }
+    }
 
-//    void GPU_XPBD_predict(float time_step, glm::vec3 gravity, float max_velocity) {
-//
-//        this->compute_predict.setVec3("gravity", gravity);
-//        this->compute_predict.setFloat("time_step", time_step);
-//        this->compute_predict.setFloat("max_velocity", max_velocity);
-//
-//        this->compute_predict.use();
-//        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
-//        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-//    }
+    void GPU_retrieve_data(){
+        //nodes
+        glGetNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
+    }
 
-//    void GPU_solve_ground_collisions() {
-//
-//        this->TMP_compute_ground_collisions.use();
-//        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
-//        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-//
-//    }
+    void GPU_XPBD_predict(float time_step, glm::vec3 gravity, float max_velocity) {
 
-//    void GPU_XPBD_solve_constraints_coloring(float time_step, int passes){
-//
-//        this->compute_solve_coloring_constraints.setFloat("time_step", time_step);
-//
-//        int set_start = 0;
-//        int set_end = 0;
-//
-//        if(passes == 0)
-//            passes = (int)constr_sets.size();
-//
-//        for(int i=0; i<passes; i++){
-//            set_start = set_end;
-//            set_end += (int)constr_sets[i].size();
-//            this->compute_solve_coloring_constraints.setInt("set_start", set_start);
-//            this->compute_solve_coloring_constraints.setInt("set_end", set_end);
-//
-//            this->compute_solve_coloring_constraints.use();
-//            glDispatchCompute(std::ceil(constr_sets[i].size()/32), 1, 1);
-//            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-//        }
-//
-//    }
+        this->compute_predict.setVec3("gravity", gravity);
+        this->compute_predict.setFloat("time_step", time_step);
+        this->compute_predict.setFloat("max_velocity", max_velocity);
 
-//    void GPU_XPBD_solve_constraints_jacobi(float time_step, int coloring_passes){
-//
-//        this->compute_solve_jacobi_constraints.setFloat("time_step", time_step);
-//
-//        int first_constr = 0;
-//        for(int i=0; i<coloring_passes; i++){
-//            first_constr += (int)constr_sets[i].size();
-//        }
-//        this->compute_solve_jacobi_constraints.setInt("first_constr", first_constr);
-//
-//        this->compute_solve_jacobi_constraints.use();
-//        glDispatchCompute(std::ceil((this->constraints.size()-first_constr)/32), 1, 1);
-//        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-//
-//    }
+        this->compute_predict.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
 
-//    void GPU_XPBD_add_jacobi_correction(){
-//        float magic_number = 0.3;
-//        this->compute_jacobi_add_correction.setFloat("magic_number", magic_number);
-//
-//        this->compute_jacobi_add_correction.use();
-//        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
-//        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-//    }
+    void GPU_solve_ground_collisions() {
 
-//    void GPU_XPBD_update_velocity (float time_step){
-//        this->compute_update_velocities.setFloat("time_step", time_step);
-//
-//        this->compute_update_velocities.use();
-//        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
-//        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-//    }
+        this->TMP_compute_ground_collisions.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    }
+
+    void GPU_XPBD_solve_constraints_coloring(float time_step, int passes){
+
+        this->compute_solve_coloring_constraints.setFloat("time_step", time_step);
+
+        int set_start = 0;
+        int set_end = 0;
+
+        if(passes == 0)
+            passes = (int)constr_sets.size();
+
+        for(int i=0; i<passes; i++){
+            set_start = set_end;
+            set_end += (int)constr_sets[i].size();
+            this->compute_solve_coloring_constraints.setInt("set_start", set_start);
+            this->compute_solve_coloring_constraints.setInt("set_end", set_end);
+
+            this->compute_solve_coloring_constraints.use();
+            glDispatchCompute(std::ceil(constr_sets[i].size()/32), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
+
+    }
+
+    void GPU_XPBD_solve_constraints_jacobi(float time_step, int coloring_passes){
+
+        this->compute_solve_jacobi_constraints.setFloat("time_step", time_step);
+
+        int first_constr = 0;
+        for(int i=0; i<coloring_passes; i++){
+            first_constr += (int)constr_sets[i].size();
+        }
+        this->compute_solve_jacobi_constraints.setInt("first_constr", first_constr);
+
+        this->compute_solve_jacobi_constraints.use();
+        glDispatchCompute(std::ceil((this->springs.size()-first_constr)/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+    }
+
+    void GPU_XPBD_add_jacobi_correction(){
+        float magic_number = 0.3;
+        this->compute_jacobi_add_correction.setFloat("magic_number", magic_number);
+
+        this->compute_jacobi_add_correction.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
+
+    void GPU_XPBD_update_velocity (float time_step){
+        this->compute_update_velocities.setFloat("time_step", time_step);
+
+        this->compute_update_velocities.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
 
     void updateHashGrid(hashgrid::HashGrid& grid){
 

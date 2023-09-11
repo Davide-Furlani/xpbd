@@ -76,8 +76,7 @@ public:
                     }
                 }
             }
-            int franco = std::count_if(model->meshes[0].triangles.begin(), model->meshes[0].triangles.end(),[](Triangle t){return t.isInsideSphere;});
-            float curr_radius = bounding_spheres_bones[0]->radius;
+            
             iter = check();
             if (iter == false) {
                 for (int j = 0; j < bounding_spheres_bones.size(); j++) {
