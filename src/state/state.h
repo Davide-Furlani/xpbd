@@ -15,6 +15,8 @@
 
 #define CPU 0
 #define GPU 1
+#define HASHGRID 1
+#define NO_HASHGRID 0
 
 namespace render {
     struct State {
@@ -22,6 +24,7 @@ namespace render {
         
         //simulation
         int sym_type;
+        int hashgrid_sym;
         
         //physics
         int iteration_per_frame = 30;
@@ -51,7 +54,7 @@ namespace render {
 
         void update(GLFWwindow* window);
         
-        State(unsigned int w, unsigned int h, int sim_type);
+        State(unsigned int w, unsigned int h, int sim_type, int hashgrid_sym);
         
     };
 }

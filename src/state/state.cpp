@@ -15,9 +15,10 @@ namespace render {
 
     
     
-    State::State(unsigned int w, unsigned int h, int sym_type){
+    State::State(unsigned int w, unsigned int h, int sym_type, int hashgrid_sym){
                 
         this->sym_type = sym_type;
+        this->hashgrid_sym = hashgrid_sym;
         
         scr_width = w;
         scr_height = h;

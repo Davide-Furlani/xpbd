@@ -11,13 +11,15 @@
 #include "display/floor.h"
 #include "hashgrid/hashgrid.h"
 
+constexpr unsigned int NUM_FRAME_MEAN = 600;
+
 constexpr unsigned int SCR_WIDTH = 750;
 constexpr unsigned int SCR_HEIGHT = 450;
 
-constexpr unsigned int CLOTH_WIDTH  = 64;
-constexpr unsigned int CLOTH_HEIGHT = 90;
+constexpr unsigned int CLOTH_WIDTH  = 32;
+constexpr unsigned int CLOTH_HEIGHT = 32;
 constexpr float CLOTH_SIZE = 2.0;
-constexpr float PARTICLE_THICKNESS = CLOTH_SIZE/CLOTH_WIDTH;
+constexpr float PARTICLE_THICKNESS = CLOTH_SIZE/CLOTH_WIDTH *0.67;
 constexpr float GRID_CELL_SIZE = 2*PARTICLE_THICKNESS;
 
 using namespace glm;
@@ -27,7 +29,7 @@ using namespace cloth;
 int main(){
 
     hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT, CLOTH_WIDTH*CLOTH_HEIGHT};
-    render::State state {SCR_WIDTH, SCR_HEIGHT, GPU};
+    render::State state {SCR_WIDTH, SCR_HEIGHT, GPU, NO_HASHGRID};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
     set_GL_parameters();
@@ -48,12 +50,21 @@ int main(){
     Axis axis {SCR_WIDTH, SCR_HEIGHT};
     Floor floor {SCR_WIDTH, SCR_HEIGHT};
     
+    float benchmark_time[NUM_FRAME_MEAN];
+    int mean_index = 0;
    
     
     // main render loop
     while(!glfwWindowShouldClose(window)){
         state.update(window);
+        
         std::cout << "frame time: " << state.delta_time << " - (" << 1.0/state.delta_time << " FPS)" << std::endl;
+        
+        benchmark_time[mean_index] = (float)state.delta_time;
+        mean_index++;
+//        mean_index = mean_index%NUM_FRAME_MEAN;
+        if(mean_index == NUM_FRAME_MEAN)
+            break;
         
         processInput(window, state, camera);
         
@@ -61,16 +72,11 @@ int main(){
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 //        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
 
-        cloth.proces_input(window);
-//        if(state.current_time_from_start > 5){
-//            cloth.unpin2();
-//        }
-//        if(state.current_time_from_start > 5){
-//            cloth.unpin1();
-//        }
+//        cloth.proces_input(window);
     
 //        if(state.sym_type == GPU){
 //            cloth.GPU_retrieve_data();
+            cloth.proces_input(window);
 //            cloth.GPU_send_data();
 //        }
         cloth.simulate_XPBD(state, grid);
@@ -90,6 +96,12 @@ int main(){
 //        std::cout << cloth.all_tris.size() << "\t" << cloth.nodes.size() << "\n";
     }
 
+    float avg_sum = 0.0f;
+    for(int i=0; i<NUM_FRAME_MEAN; i++){
+        avg_sum += benchmark_time[i];
+    }
+    float avg_time = avg_sum/NUM_FRAME_MEAN;
+    std::cout << "media: " << avg_time << std::endl;
 
     cloth.free_resources();
     axis.free();

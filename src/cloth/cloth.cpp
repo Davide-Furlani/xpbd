@@ -225,8 +225,8 @@ namespace cloth {
         nodes.at(pin1_index).w = 1.0/node_mass;
     }
     void Cloth::unpin2() {
-        nodes.at(pin2_index).m = 1.0;
-        nodes.at(pin2_index).w = 1.0;
+        nodes.at(pin2_index).m = node_mass;
+        nodes.at(pin2_index).w = 1.0/node_mass;;
     }    
 
     void Cloth::proces_input(GLFWwindow *window){
@@ -387,7 +387,8 @@ namespace cloth {
             XPBD_predict(time_step, s.gravity, max_velocity);
             XPBD_solve_ground_collisions();
             XPBD_solve_constraints(time_step);
-            HG_solve_collisions();
+            if(s.hashgrid_sym == HASHGRID)
+                HG_solve_collisions();
             XPBD_update_velocity(time_step);
         }
     }
@@ -399,8 +400,11 @@ namespace cloth {
         float max_travel_distance = max_velocity * s.simulation_step_time;
         updateHashGrid(grid);
         queryAll(grid, max_travel_distance);
+        
         GPU_send_data();
+
         for(int i=0; i< s.iteration_per_frame; ++i){
+            GPU_XPBD_update_velocity(time_step);
             GPU_XPBD_predict(time_step, s.gravity, max_velocity);
             GPU_solve_ground_collisions();
             if(solve_type == COLORING) {
@@ -413,11 +417,14 @@ namespace cloth {
                 GPU_XPBD_solve_constraints_jacobi(time_step, 4);
                 GPU_XPBD_add_jacobi_correction();
             }
-            GPU_retrieve_data();
-            HG_solve_collisions(); // TODO buttarlo in GPU -----------------------------------------------------
-            GPU_send_data();
-            GPU_XPBD_update_velocity(time_step);
+            if(s.hashgrid_sym == HASHGRID) {
+                GPU_retrieve_data();
+                HG_solve_collisions();
+                GPU_send_data();
+            }
+//            GPU_XPBD_update_velocity(time_step);
         }
+        
         GPU_retrieve_data();
     }
     
