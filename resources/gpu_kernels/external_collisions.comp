@@ -1,0 +1,163 @@
+#version 460 core
+
+layout (local_size_x = 32) in;
+
+struct Vec_pointer {
+    double do_not_use_0;
+    double do_not_use_1;
+    double do_not_use_2;
+};
+
+struct Node {
+    vec3 pos;
+    float thickness;
+    vec3 prev_pos;
+    float m;
+    vec3 nat_pos;
+    float w;
+    vec3 vel;
+    vec3 prev_vel;
+    vec3 n;
+    vec3 corr;
+    vec2 uv_c;
+    Vec_pointer neighbors_vector_do_not_use;
+};
+
+struct Face {
+    int v1;
+    int v2;
+    int v3;
+};
+
+struct Vertex {
+    float x;
+    float y;
+    float z;
+};
+
+struct IntersectionResult {
+    vec3 point;
+    bool success;
+};
+
+
+
+layout(std430, binding = 8) buffer nodesSSBO {
+    Node nodes[];
+};
+
+layout(std430, binding = 11) buffer facesSSBO {
+    Face faces[];
+};
+
+layout(std430, binding = 7) buffer verticesSSBO {
+    Vertex vertices[];
+};
+
+uniform int num_faces;
+
+
+int nearest_vertex(int face_i, int particle_id){
+    
+    vec3 vertex = vec3(vertices[faces[face_i].v1].x, vertices[faces[face_i].v1].y, vertices[faces[face_i].v1].z);
+    
+    float distance = length(nodes[particle_id].pos - vertex);
+    int result = v1;
+
+    vec3 vertex = vec3(vertices[faces[face_i].v2].x, vertices[faces[face_i].v2].y, vertices[faces[face_i].v2].z);
+    float new_distance = length(nodes[particle_id].pos - vertex);
+    if (new_distance < distance){
+        result = v2;
+    }
+    vec3 vertex = vec3(vertices[faces[face_i].v1].x, vertices[faces[face_i].v1].y, vertices[faces[face_i].v1].z);
+    new_distance = length(nodes[particle_id].pos - vertex);
+    if (new_distance < distance){
+        result = v3;
+    }
+
+    return result;
+}
+
+void setWorldPos(Node n, vec3 pos) {n.pos = pos;}
+
+IntersectionResult ray_triangle_intersection(Face face, vec3 origin, vec3 direction) {
+    //Find the intersecrion point on the plane (shifted plane to prevent penetration)
+    vec3 n = triangle.normal();
+    IntersectionResult result;
+    result.success = false;
+
+    float denominator = n.x * direction.x + n.y * direction.y + n.z * direction.z;
+    if (abs(denominator) < 0.0001f){
+        result.success = false;
+        return result;
+    }
+        
+    
+    vec3 cen = vec3((vertices[face.v1].x + vertices[face.v2].x + vertices[face.v3].x) / 3, (vertices[face.v1].y + vertices[face.v2].y + vertices[face.v3].y) / 3, (vertices[face.v1].z + vertices[face.v2].z + vertices[face.v3].z) / 3);
+    float numerator = n.x * (cen - origin).x + n.y * (cen - origin).y + n.z * (cen - origin).z;
+    float len = (numerator / denominator);
+
+//Projection point on the plane
+    result.point = origin + vec3(len * direction.x, len * direction.y, len * direction.z);
+
+// ---------- Check if the point lies inside a triangle ----------
+//Metodo del prodotto misto
+    vec3 point = result.point;
+    
+    vec3 v1_pos = vec3(vertices[face.v1].x, vertices[face.v1].y, vertices[face.v1].z);
+    vec3 v2_pos = vec3(vertices[face.v2].x, vertices[face.v2].y, vertices[face.v2].z);
+    vec3 v3_pos = vec3(vertices[face.v3].x, vertices[face.v3].y, vertices[face.v3].z);
+    
+    vec3 v1v2 = v1_pos - v2_pos;
+    vec3 v1v3 = v1_pos - v3_pos;
+    vec3 v1P = v1_pos - point;
+    vec3 v1v2_cr_v1v3 = cross(v1v2, v1v3);
+
+    if ((v1v2_cr_v1v3.x * v1P.x + v1v2_cr_v1v3.y * v1P.y + v1v2_cr_v1v3.z * v1P.z) >= 0)
+        result.success = true;
+
+//Metodo delle 3 aree
+/*if ((internalTriangle_area(point, triangle.v1->Position, triangle.v2->Position) +
+    internalTriangle_area(point, triangle.v2->Position, triangle.v3->Position) +
+    internalTriangle_area(point, triangle.v3->Position, triangle.v1->Position)) <= triangle.area()) {
+    return true;
+}*/
+    return result;
+}
+
+
+
+void main(){
+
+    uint id = gl_GlobalInvocationID.x;
+    
+    for(int i=0; i<num_faces; i++){
+        int nearest_v_i = nearest_vertex(i, id);
+        vec3 nearest_v = vec3(vertices[nearest_v_i].x, vertices[nearest_v_i].y, vertices[nearest_v_i].z);
+        if (length(nearest_v - nodes[id].pos) < nodes[id].thickness) {
+            vec3 particle_direction = nodes[id].pos - nodes[id].prev_pos;
+            particle_direction = normalize(particle_direction);
+            IntersectionResult intersection = ray_triangle_intersection(faces[i], nodes[id].prev_pos, particle_direction);
+            
+            if(intersection.success){
+                vec3 collision_direction_shift = nodes[id].prev_pos - intersection.point;
+                collision_direction_shift = normalize(collision_direction_shift);
+
+                if (length(intersection.point - nodes[id].pos) < nodes[id].thickness) {
+                    setWorldPos(nodes[id], intersection.point + collision_direction_shift * nodes[id].thickness);
+                    nodes[j].vel = nodes[j].vel * 0.5f;
+                    continue;
+                }
+            } else {
+                if (length(nearest_v - nodes[id].pos) < nodes[id].thickness) {
+                    vec3 dir = nodes[j].pos - nearest_v;
+                    dir = normalize(dir);
+                    setWorldPos(nodes[id], nearest_v + dir * nodes[id].thickness);
+                    nodes[id].vel = nodes[id].vel * 0.5f;
+                    continue;
+                }
+            }
+        }
+        
+    }
+}

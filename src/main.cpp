@@ -62,9 +62,9 @@ int main(){
 
 
     Model model_cloth("resources/meshes/Top/Top3.obj"); //Load model
-    ClothModel cloth_top(&model_cloth, &human, glm::vec3(0.09f, -3.4f, -0.7f), glm::vec3(6.76f, 6.9f, 6.2f), 0.1f, 8, 9, 10); //Convert model into cloth
+    ClothModel cloth_top(&model_cloth, &human, glm::vec3(0.09f, -3.4f, -0.7f), glm::vec3(6.76f, 6.9f, 6.2f), 0.1f); //Convert model into cloth
     cloth_top.init_render_data(camera, state);
-//    cloth.GPU_send_data();
+
 
 //    Model model_cloth("resources/meshes/Tshirt/TshirtTposeBig.obj");
 //    ClothModel cloth_top(&model_cloth, &human, glm::vec3(0.0f, -1.5f, 0.7f), glm::vec3(0.044f, 0.034f, 0.042f), 0.2f); //Convert model into cloth
@@ -112,7 +112,7 @@ int main(){
 //            cloth.GPU_send_data();
 //        }
 //        if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS)
-            animator.UpdateAnimation(state.simulation_step_time); //Update animation
+//            animator.UpdateAnimation(state.simulation_step_time); //Update animation
         bvh.modify(animator.GetBonePositions(), human.GetBoneCount()); //Update BVH structure
         
         human_shader.use();

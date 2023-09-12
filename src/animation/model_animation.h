@@ -179,7 +179,8 @@ private:
 		}
 
 		for (unsigned int i = 0; i < indices.size(); i = i + 3)
-			triangles.emplace_back(&vertices[indices[i]], &vertices[indices[i + 1]], &vertices[indices[i + 2]]);
+            triangles.emplace_back(&vertices[indices[i]], &vertices[indices[i + 1]], &vertices[indices[i + 2]]);
+            
 
 
 		

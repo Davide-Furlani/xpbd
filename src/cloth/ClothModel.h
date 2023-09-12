@@ -13,6 +13,13 @@
 #define JACOBI 1
 #define HYBRID 2
 
+
+#define N_SSBO 8
+#define CC_SSBO 9
+#define JC_SSBO 10
+#define HF_SSBO 11
+#define HV_SSBO 12
+
 bool first_iteration = true;
 int solve_type = JACOBI;
 
@@ -49,14 +56,12 @@ public:
     GLint aPtrTex;
     GLint aPtrNor;
     
-    
-    int N_SSBO;
-    int CC_SSBO;
-    int JC_SSBO;
 
     GLuint ssbo_nodes;
     GLuint ssbo_cconstrs;
     GLuint ssbo_jconstrs;
+    GLuint ssbo_model_faces;
+    GLuint ssbo_model_vertexes;
 
     Shader compute_predict {"resources/gpu_kernels/next_predict_pos.comp"};
     Shader TMP_compute_ground_collisions {"resources/gpu_kernels/ground_collisions.comp"};
@@ -64,22 +69,20 @@ public:
     Shader compute_solve_jacobi_constraints {"resources/gpu_kernels/solve_jacobi_constraints.comp"};
     Shader compute_jacobi_add_correction {"resources/gpu_kernels/jacobi_add_correction.comp"};
     Shader compute_update_velocities {"resources/gpu_kernels/update_velocities.comp"};
+    Shader compute_external_collisions{"resources/gpu_kernels/external_collisions.comp"};
 
     const float stretching_compliance = 0.0f;
     const float bending_compliance = 0.03f;
     
     float node_thickness;
 
-    ClothModel(Model *m, Model *h, glm::vec3 t, glm::vec3 s, float thickness, int n_ssbo_i, int cc_ssbo_i, int jc_ssbo_i) {
+    ClothModel(Model *m, Model *h, glm::vec3 t, glm::vec3 s, float thickness) {
         modelCloth = m;
         associatedHuman = h;
         translation = t;
         scaling = s;
         node_thickness = thickness;
         box = new Box();
-        N_SSBO = n_ssbo_i;
-        CC_SSBO = cc_ssbo_i;
-        JC_SSBO = jc_ssbo_i;
         initClothModel(thickness);
         
         init_gpu_data();
@@ -158,6 +161,23 @@ public:
 
     }
 
+
+    void init_avatar_model_gpu_data(Mesh &mesh){
+        // model faces
+        glGenBuffers(1, &(this->ssbo_model_faces));
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_model_faces);
+        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(unsigned int)*mesh.indices.size(), mesh.indices.data(), GL_STATIC_READ);
+        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, HF_SSBO, this->ssbo_model_faces);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+        
+//        // model verteces
+//        glGenBuffers(1, &(this->ssbo_model_vertexes));
+//        glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_model_vertexes);
+//        glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(float)*3*mesh.vertices.size(), nullptr, GL_STATIC_READ);
+//        glBindBufferBase(GL_SHADER_STORAGE_BUFFER, HF_SSBO, this->ssbo_model_vertexes);
+//        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    }
+    
     void init_gpu_data(){
         // buffer per compute shaders
         // nodi
@@ -188,8 +208,8 @@ public:
         glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Constraint)*this->springs.size(), this->springs.data(), GL_STATIC_READ);
         glBindBufferBase(GL_SHADER_STORAGE_BUFFER, JC_SSBO, this->ssbo_jconstrs);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-
     }
+    
     
     // -------------------------------- Init render data --------------------------------
     void init_render_data(render::Camera &cam, render::State &s) {
@@ -298,6 +318,8 @@ public:
         glDeleteBuffers(1, &ssbo_nodes);
         glDeleteBuffers(1, &ssbo_cconstrs);
         glDeleteBuffers(1, &ssbo_jconstrs);
+        glDeleteBuffers(1, &ssbo_model_faces);
+        glDeleteBuffers(1, &ssbo_model_vertexes);
         this->cloth_shader.destroy();
         this->compute_predict.destroy();
         this->TMP_compute_ground_collisions.destroy();
@@ -305,6 +327,7 @@ public:
         this->compute_solve_jacobi_constraints.destroy();
         this->compute_jacobi_add_correction.destroy();
         this->compute_update_velocities.destroy();
+        this->compute_external_collisions.destroy();
     }
 
     void flush(render::Camera &cam, render::State &state) {
@@ -606,6 +629,7 @@ public:
         float max_travel_distance = max_velocity * s.simulation_step_time;
         updateHashGrid(grid);
         queryAll(grid, max_travel_distance);
+
         GPU_send_data();
         for(int i=0; i< s.iteration_per_frame; ++i){
             GPU_XPBD_predict(time_step, s.gravity, max_velocity);
@@ -622,8 +646,8 @@ public:
             }
             GPU_retrieve_data();
             HG_solve_collisions();
-            collisionResponse_ray_triangle(&bvh);
             GPU_send_data();
+            GPU_collisionResponse_ray_triangle(&bvh);
             GPU_XPBD_update_velocity(time_step);
         }
         GPU_retrieve_data();
@@ -806,7 +830,7 @@ public:
 
     void queryAll(hashgrid::HashGrid& grid, float max_travel_distance) {
         float max_dist_2 = max_travel_distance * max_travel_distance;
-#pragma omp parallel for
+        #pragma omp parallel for
         for(int node=0; node<this->nodes.size(); node++){
             int min_x = grid.intCoord(this->nodes[node].pos.x - max_travel_distance);
             int max_x = grid.intCoord(this->nodes[node].pos.x + max_travel_distance);
@@ -837,7 +861,7 @@ public:
     void HG_solve_collisions(){
         float thickness_2 = this->node_thickness * this->node_thickness;
 
-#pragma omp parallel for
+        #pragma omp parallel for
         for(auto& n: nodes) {
             if (n.w == 0.0)
                 continue;
@@ -911,6 +935,14 @@ public:
          base al movimento del vestito causato dalle forze e si potr� creare nuovamente il segmento per l'intersezione
       6) ritorno la nuova posizione del centro della sfera del cloth e il relativo raggio modificato
      */
+    
+    void GPU_collisionResponse_ray_triangle(BVH *bvh) {
+        this->compute_external_collisions.setFloat("num_faces", bvh[0].model->meshes[0].triangles.size());
+
+        this->compute_external_collisions.use();
+        glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+        glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+    }
 
     void collisionResponse_ray_triangle(BVH *bvh) {
         if (first_iteration == false) {
@@ -918,7 +950,8 @@ public:
                 //AABB - Sphere collision
                 bool AABB_Sphere_collision = true;
                 glm::vec3 box_sphere_distance =
-                        glm::vec3(bvh->bounding_spheres_bones[i]->center.x, bvh->bounding_spheres_bones[i]->center.y,
+                        glm::vec3(bvh->bounding_spheres_bones[i]->center.x, 
+                                  bvh->bounding_spheres_bones[i]->center.y,
                                   bvh->bounding_spheres_bones[i]->center.z) - box->box_center;
 
                 //Calcola la distanza tra il centro della sfera e il box lungo ogni asse
@@ -930,16 +963,13 @@ public:
                                         bvh->bounding_spheres_bones[i]->center.z - box->down_left_front.z);
 
                 //Verifica la collisione lungo ogni asse
-                if (dist_x >
-                    bvh->bounding_spheres_bones[i]->radius + (box->up_right_front.x - box->up_left_front.x) * 0.5f) {
+                if (dist_x > bvh->bounding_spheres_bones[i]->radius + (box->up_right_front.x - box->up_left_front.x) * 0.5f) {
                     AABB_Sphere_collision = false;
                 }
-                if (dist_y >
-                    bvh->bounding_spheres_bones[i]->radius + (box->up_left_front.y - box->down_left_front.y) * 0.5f) {
+                if (dist_y > bvh->bounding_spheres_bones[i]->radius + (box->up_left_front.y - box->down_left_front.y) * 0.5f) {
                     AABB_Sphere_collision = false;
                 }
-                if (dist_z >
-                    bvh->bounding_spheres_bones[i]->radius + (box->down_left_front.z - box->down_left_back.z) * 0.5f) {
+                if (dist_z > bvh->bounding_spheres_bones[i]->radius + (box->down_left_front.z - box->down_left_back.z) * 0.5f) {
                     AABB_Sphere_collision = false;
                 }
 
@@ -950,6 +980,9 @@ public:
                     for (int j = 0; j < nodes.size(); j++) {
                         if (glm::length(center_sphere - nodes[j].pos) < bvh->bounding_spheres_bones[i]->radius) {
                             if (bvh->bounding_spheres_bones[i]->triangles_list.size() > 0) {
+                                
+                                
+                                
                                 for (int t = 0; t < bvh->bounding_spheres_bones[i]->triangles_list.size(); t++) {
                                     glm::vec3 nearest_v = bvh->bounding_spheres_bones[i]->triangles_list[t]->nearest_vertex(
                                             &nodes[j].pos);
@@ -985,6 +1018,9 @@ public:
                                         }
                                     }
                                 } // END FOR ON BVH_SPHERE_TRIANGLE_LIST (z)
+                                
+                                
+                                
                             }
                         } // END IF
 
@@ -1049,8 +1085,7 @@ public:
 
         compute_box_on_cloth();
     }
-
-
+    
     // -------------------------------- Ray Triangle Intersection --------------------------------
     bool ray_triangle_intersection(Triangle triangle, glm::vec3 origin, glm::vec3 direction, glm::vec3 *intersection_point) {
         //Find the intersecrion point on the plane (shifted plane to prevent penetration)
@@ -1086,8 +1121,7 @@ public:
         }*/
         return false;
     }
-
-
+    
     double internalTriangle_area(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3) {
         glm::vec3 e1 = v1 - v2;
         glm::vec3 e2 = v1 - v3;
@@ -1110,8 +1144,7 @@ public:
         printf("dentro\n");
         return true; // I due vettori hanno direzione opposta
     }
-
-
+    
     void compute_box_on_cloth() {
         box->up_right_front = glm::vec3(nodes[0].pos.x, nodes[0].pos.y, nodes[0].pos.z);
         box->up_left_front = glm::vec3(nodes[0].pos.x, nodes[0].pos.y, nodes[0].pos.z);
@@ -1171,4 +1204,5 @@ public:
                                     (box->down_left_front.y + box->up_left_front.y) / 2,
                                     (box->down_left_back.z + box->down_left_front.z) / 2);
     }
+
 };

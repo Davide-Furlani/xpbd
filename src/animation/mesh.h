@@ -86,8 +86,10 @@ public:
         glm::vec3 result = v1->Position;
 
         float new_distance = glm::length(*particle_position - v2->Position);
-        if (new_distance < distance)
+        if (new_distance < distance){
+            distance = new_distance;
             result = v2->Position;
+        }
 
         new_distance = glm::length(*particle_position - v3->Position);
         if (new_distance < distance)
@@ -104,6 +106,7 @@ public:
         printf("\n");
     }
 };
+
 
 struct Texture {
     unsigned int id;
