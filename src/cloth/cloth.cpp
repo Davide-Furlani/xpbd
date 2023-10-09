@@ -398,9 +398,11 @@ namespace cloth {
         float time_step = s.simulation_step_time/s.iteration_per_frame;
         float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
         float max_travel_distance = max_velocity * s.simulation_step_time;
-        updateHashGrid(grid);
-        queryAll(grid, max_travel_distance);
         
+        if(s.hashgrid_sym == HASHGRID) {
+            updateHashGrid(grid);
+            queryAll(grid, max_travel_distance);
+        }
         GPU_send_data();
 
         for(int i=0; i< s.iteration_per_frame; ++i){
@@ -635,6 +637,7 @@ namespace cloth {
     }
     void Cloth::HG_solve_collisions(){
         float thickness_2 = this->node_thickness * this->node_thickness;
+        
         for(auto& n: nodes) {
             if (n.w == 0.0)
                 continue;

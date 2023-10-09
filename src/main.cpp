@@ -2,7 +2,6 @@
 
 #include <glad.h>
 #include <GLFW/glfw3.h>
-#include <glm.hpp>
 #include "cloth/cloth.h"
 #include "display/display.h"
 #include "state/state.h"
@@ -29,7 +28,7 @@ using namespace cloth;
 int main(){
 
     hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT, CLOTH_WIDTH*CLOTH_HEIGHT};
-    render::State state {SCR_WIDTH, SCR_HEIGHT, GPU, NO_HASHGRID};
+    render::State state {SCR_WIDTH, SCR_HEIGHT, CPU, HASHGRID};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
     set_GL_parameters();
