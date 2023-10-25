@@ -37,8 +37,7 @@ target_include_directories(state PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/glfw-3.3.8
         ${CMAKE_SOURCE_DIR}/third_party/glm
         )
-target_link_libraries(state PRIVATE
-        glfw)
+target_link_libraries(state glfw)
 
 
 
@@ -49,7 +48,6 @@ target_link_libraries(state PRIVATE
 add_library(display STATIC
         display/display.cpp
         display/camera.cpp
-        #display/scene.cpp
         )
 target_include_directories(display PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_include_directories(display PRIVATE 
