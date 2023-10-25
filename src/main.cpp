@@ -18,6 +18,8 @@ using namespace glm;
 using namespace render;
 using namespace cloth;
 
+
+// start of the simulator
 int main(){
 
 
