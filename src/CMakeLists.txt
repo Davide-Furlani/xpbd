@@ -41,7 +41,10 @@ target_include_directories(state PRIVATE
         ${CMAKE_SOURCE_DIR}/third_party/glfw-3.3.8
         ${CMAKE_SOURCE_DIR}/third_party/glm
         )
-target_link_libraries(state PRIVATE glfw)
+target_link_libraries(state glfw)
+
+
+
 
 
 

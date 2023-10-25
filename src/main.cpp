@@ -25,6 +25,8 @@ using namespace glm;
 using namespace render;
 using namespace cloth;
 
+
+// start of the simulator
 int main(){
 
     hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT, CLOTH_WIDTH*CLOTH_HEIGHT};
