@@ -87,10 +87,7 @@ public:
         }
 
 
-
-
         if( c_pos != nullptr && c_front != nullptr && c_up != nullptr){
-
             glm::mat4 view = lookAt(*c_pos, *c_pos + *c_front, *c_up);
             shader.use();
             shader.setMat4("uniViewMatrix", view);

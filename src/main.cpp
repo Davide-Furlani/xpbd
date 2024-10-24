@@ -36,7 +36,7 @@ using namespace cloth;
 int main(){
 
     hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT, CLOTH_WIDTH*CLOTH_HEIGHT};
-    render::State state {SCR_WIDTH, SCR_HEIGHT, GPU, NO_HASHGRID};
+    render::State state {SCR_WIDTH, SCR_HEIGHT, CPU, NO_HASHGRID};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
     set_GL_parameters();
@@ -50,15 +50,16 @@ int main(){
     //cloth::SquareCloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, CLOTH_SIZE, PARTICLE_THICKNESS, state};
     //cloth.GPU_send_data();
 
-    std::filesystem::path cloth_path = "resources/Meshes/cube.stl";
+    std::filesystem::path cloth_model_path = "resources/Meshes/cloth.stl";
+    auto cloth_shaders_paths = std::pair<char const*, char const*> ("resources/Shaders/ClothVS.glsl", "resources/Shaders/ClothFS.glsl");
+    std::filesystem::path texture_p {"resources/Textures/tex1.jpg"};
+    cloth::Cloth cloth = Cloth{cloth_model_path, cloth_shaders_paths, texture_p, state};
 
-    cloth::Cloth cloth = Cloth{cloth_path};
+    cloth.rotate(-90.0f, glm::vec3(1.0,0.0,0.0));
+    cloth.translate(glm::vec3(0.0, 0.0, 0.5f));
+    cloth.rotate(180.0f, glm::vec3(0.0,0.0,1.0));
 
-    
-//    render::Camera camera {glm::vec3(3.0, 2.0, 1.3), 
-//                           glm::vec3(-1.0, -1.0, -0.3),
-//                           glm::vec3(0.0, 0.0, 1.0)};
-//                           
+
     render::Camera camera {glm::vec3(1.0, 4., 1.85), 
                            glm::vec3(0.0, -1.0, 0.0),
                            glm::vec3(0.0, 0.0, 1.0)};
@@ -117,9 +118,9 @@ int main(){
 //            cloth.proces_input(window);
 //        }
 //
-//        cloth.simulate_XPBD(state, grid);
-//
-//        cloth.render(camera);
+        cloth.simulate_XPBD(state, grid);
+
+        cloth.render(camera);
         axis.render(camera);
         floor.render(camera);
 //        owl.Draw(owl_shader, &camera.pos, &camera.front_v, &camera.up_v);

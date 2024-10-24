@@ -38,7 +38,7 @@ namespace render {
             Camera::roll = 0.0;
             Camera::max_pitch = 89.0;
             Camera::min_pitch = -89.0;
-            Camera::speed = 7;
+            Camera::speed = 5;
             Camera::sensitivity = 0.0035;
         }
         Camera(vec3 pos, vec3 front, vec3 up, float speed, float sensitivity){
