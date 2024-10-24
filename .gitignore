@@ -4,6 +4,3 @@ release/
 .vscode/
 .vs/
 .idea/
-.cache/
-cmake-build-debug/
-cmake-build-release/

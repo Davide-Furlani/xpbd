@@ -1,31 +1,25 @@
 #include <iostream>
 
-#include <glad/glad.h>
+#include <glad.h>
 #include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <learnopengl/model.h>
-#include <learnopengl/shader.h>
-//#include "headers/square_cloth.h"
-#include "headers/cloth.h"
-#include "headers/display.h"
-#include "headers/state.h"
-#include "headers/camera.h"
-#include "headers/axis.h"
-#include "headers/floor.h"
-#include "headers/hashgrid.h"
-
+#include "cloth/cloth.h"
+#include "display/display.h"
+#include "state/state.h"
+#include "display/camera.h"
+#include "display/axis.h"
+#include "display/floor.h"
+#include "hashgrid/hashgrid.h"
 
 constexpr unsigned int NUM_FRAME_MEAN = 600;
 
 constexpr unsigned int SCR_WIDTH = 750;
 constexpr unsigned int SCR_HEIGHT = 450;
 
-constexpr unsigned int CLOTH_WIDTH  = 24;
-constexpr unsigned int CLOTH_HEIGHT = 24;
+constexpr unsigned int CLOTH_WIDTH  = 64;
+constexpr unsigned int CLOTH_HEIGHT = 64;
 constexpr float CLOTH_SIZE = 2.0;
 constexpr float PARTICLE_THICKNESS = CLOTH_SIZE/CLOTH_WIDTH *0.67;
 constexpr float GRID_CELL_SIZE = 2*PARTICLE_THICKNESS;
-
 
 using namespace glm;
 using namespace render;
@@ -47,13 +41,8 @@ int main(){
     std::cout << vendor << std::endl;
     std::cout << renderer << std::endl;
 
-    //cloth::SquareCloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, CLOTH_SIZE, PARTICLE_THICKNESS, state};
-    //cloth.GPU_send_data();
-
-    std::filesystem::path cloth_path = "resources/Meshes/cube.stl";
-
-    cloth::Cloth cloth = Cloth{cloth_path};
-
+    cloth::Cloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, CLOTH_SIZE, PARTICLE_THICKNESS, state};
+    cloth.GPU_send_data();
     
 //    render::Camera camera {glm::vec3(3.0, 2.0, 1.3), 
 //                           glm::vec3(-1.0, -1.0, -0.3),
@@ -65,29 +54,11 @@ int main(){
     
     Axis axis {SCR_WIDTH, SCR_HEIGHT};
     Floor floor {SCR_WIDTH, SCR_HEIGHT};
-//    Model owl{"resources/Meshes/owl_light.stl"};
-//    Shader owl_shader{"resources/Shaders/owl.vert", "resources/Shaders/owl.frag"};
-//
-//
-//    for(auto& v: owl.meshes[0].vertices) {
-//        v.Position.x *= 0.1f;
-//        v.Position.y *= 0.1f;
-//        v.Position.z *= 0.1f;
-//    }
-//    owl.meshes[0].setupMesh();
-//
-//    mat4 projection = perspective(glm::radians(45.0f), static_cast<float>(SCR_WIDTH) / static_cast<float>(SCR_HEIGHT), 0.1f, 100.0f);
-//    owl_shader.use();
-//    owl_shader.setMat4("uniProjMatrix", projection);
-
-
-
-
-
+    
 //    float benchmark_time[NUM_FRAME_MEAN];
 //    int mean_index = 0;
-
-
+   
+    
     // main render loop
     while(!glfwWindowShouldClose(window)){
         state.update(window);
@@ -107,22 +78,18 @@ int main(){
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 //        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE); // per vedere le linee dei triangoli
 
-
+//        cloth.proces_input(window);
     
-//        if(state.sim_type == GPU){
+//        if(state.sym_type == GPU){
 //            cloth.GPU_retrieve_data();
-//            cloth.proces_input(window);
+            cloth.proces_input(window);
 //            cloth.GPU_send_data();
-//        }else{ // CPU
-//            cloth.proces_input(window);
 //        }
-//
-//        cloth.simulate_XPBD(state, grid);
-//
-//        cloth.render(camera);
-        axis.render(camera);
+        cloth.simulate_XPBD(state, grid);
+        
+        cloth.render(camera);
+//        axis.render(camera);
         floor.render(camera);
-//        owl.Draw(owl_shader, &camera.pos, &camera.front_v, &camera.up_v);
 
         glfwSwapBuffers(window);
 //        glFlush(); // no framerate max
@@ -142,7 +109,7 @@ int main(){
 //    float avg_time = avg_sum/NUM_FRAME_MEAN;
 //    std::cout << "media: " << avg_time << std::endl;
 
-//    cloth.free_resources();
+    cloth.free_resources();
     axis.free();
     floor.free();
     glfwTerminate();
