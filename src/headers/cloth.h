@@ -38,19 +38,37 @@ namespace cloth {
         float bending_compliance = 0.03f;
         float self_friction = 0.2f;
 
-        std::map<int, std::vector<int>> same_verts;
+        std::map<unsigned int, std::vector<unsigned int>> same_verts;
 
         std::vector<Node> nodes;
         std::vector<Constraint> constraints;
         std::vector<glm::ivec3> tris;
 
+        std::vector<std::vector<Constraint>> constr_sets;
+        int max_node_cardinality;
+
+        GLuint ssbo_nodes;
+        GLuint ssbo_cconstrs;
+        GLuint ssbo_jconstrs;
+//    GLuint ssbo_grid_cells;
+//    GLuint ssbo_grid_nodes;
+//    GLuint ssbo_grid_neighbours;
+        Shader compute_predict {"resources/gpu_kernels/next_predict_pos.comp"};
+        Shader TMP_compute_ground_collisions {"resources/gpu_kernels/ground_collisions.comp"};
+        Shader compute_solve_coloring_constraints {"resources/gpu_kernels/solve_coloring_constraints.comp"};
+        Shader compute_solve_jacobi_constraints {"resources/gpu_kernels/solve_jacobi_constraints.comp"};
+        Shader compute_jacobi_add_correction {"resources/gpu_kernels/jacobi_add_correction.comp"};
+//    Shader compute_HG_collisions {""};
+        Shader compute_update_velocities {"resources/gpu_kernels/update_velocities.comp"};
+
         Model model;
 
-        Shader shader;
+        Shader shader {"resources/Shaders/ClothVS.glsl", "resources/Shaders/ClothFS.glsl"};
         unsigned int texture;
+        std::filesystem::path texture_p {"resources/Textures/tex1.jpg"};
 
 
-        Cloth(std::filesystem::path &model_path, std::pair<char const*, char const*> &shader_paths, std::filesystem::path &texture_p, render::State &state): model{Model(model_path)}, shader{Shader(shader_paths.first, shader_paths.second)}{
+        Cloth(std::filesystem::path &model_path, render::State &state): model{Model(model_path)}{
 
             if(this->model.meshes.size() > 1){
                 std::cerr << "Cloth require a model with a single mesh, you tried to load a model with " << model.meshes.size() << " meshes" << std::endl;
@@ -58,7 +76,7 @@ namespace cloth {
             }
             
             //imposto le shader
-            this->texture = render::load_textures(texture_p);
+            this->texture = render::load_textures(this->texture_p);
             this->shader.use();
             glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)state.scr_width / (float)state.scr_height, 0.1f, 100.0f);
             this->shader.setMat4("uniProjMatrix", projection);
@@ -68,7 +86,7 @@ namespace cloth {
 
 
             // creazione dei nodi
-            for (int i=0; i<model.meshes[0].vertices.size(); i++) {
+            for (unsigned int i=0; i<model.meshes[0].vertices.size(); i++) {
 
                 int original_vert = find_same_vert(i, model.meshes[0]);
                 // se il vertice è unico rispetto a quelli già analizzati
@@ -87,7 +105,6 @@ namespace cloth {
             }
 
             // creazione dei stretching constraints
-            // todo! rimuovere i constraint duplicati
             for(int first_v_of_tri=0; first_v_of_tri < model.meshes[0].indices.size(); first_v_of_tri+=3){
 
                 int n_a = find_corresponding_node(model.meshes[0].indices[first_v_of_tri]);
@@ -104,13 +121,116 @@ namespace cloth {
                 this->tris.emplace_back(n_a, n_b, n_c);
             }
 
-            // todo! creazione dei bending constraints
+            // =============================== ELIMINAZIONE CONSTRAINT DUPLICATI + CREAZIONE BENDING CONSTRAINT ==================================================
+            // Elisa De Rossi
+            // Mappa: per ogni edge (coppia non ordinata) -> triangoli con quell'edge
+            // Supponiamo mesh manifold : a ogni edge sono associati almeno 1 triangolo e al massimo 2.
+            struct ivec2Compare {
+                bool operator()(const glm::ivec2& a, const glm::ivec2& b) const {
+                    if (a.x != b.x)
+                        return a.x < b.x;
+                    return a.y < b.y;
+                }
+            };
+
+            std::map<glm::ivec2, std::vector<glm::ivec3>, ivec2Compare> edgesAndTriangles;
+            for (glm::ivec3 triangle : tris)
+            {
+                edgesAndTriangles[glm::ivec2(std::min(triangle.x, triangle.y), std::max(triangle.x, triangle.y))].emplace_back(triangle);
+                edgesAndTriangles[glm::ivec2(std::min(triangle.y, triangle.z), std::max(triangle.y, triangle.z))].emplace_back(triangle);
+                edgesAndTriangles[glm::ivec2(std::min(triangle.x, triangle.z), std::max(triangle.x, triangle.z))].emplace_back(triangle);
+            }
+
+            for (std::pair<const glm::ivec2, std::vector<glm::ivec3>> edgeAndTriangles : edgesAndTriangles)
+            {
+                // Eliminazione constraint duplicati
+                for (Constraint constraint : constraints)
+                    if (edgeAndTriangles.second.size() > 1 && edgeAndTriangles.first.x == constraint.b_node && edgeAndTriangles.first.y == constraint.a_node)
+                        constraints.erase(std::remove(constraints.begin(), constraints.end(), constraint), constraints.end());
+
+                // Creazione bending constraints
+                if (edgeAndTriangles.second.size() > 1)
+                {
+                    int bendingA = -1;
+                    int bendingB = -1;
+
+                    // Ricerca vertice "libero" nel primo triangolo
+                    if (edgeAndTriangles.second[0].x != edgeAndTriangles.first.x && edgeAndTriangles.second[0].x != edgeAndTriangles.first.y)
+                        bendingA = edgeAndTriangles.second[0].x;
+                    else if (edgeAndTriangles.second[0].y != edgeAndTriangles.first.x && edgeAndTriangles.second[0].y != edgeAndTriangles.first.y)
+                        bendingA = edgeAndTriangles.second[0].y;
+                    else if (edgeAndTriangles.second[0].z != edgeAndTriangles.first.x && edgeAndTriangles.second[0].z != edgeAndTriangles.first.y)
+                        bendingA = edgeAndTriangles.second[0].z;
+
+                    // Ricerca vertice "libero" nel secondo triangolo
+                    if (edgeAndTriangles.second[1].x != edgeAndTriangles.first.x && edgeAndTriangles.second[1].x != edgeAndTriangles.first.y)
+                        bendingB = edgeAndTriangles.second[1].x;
+                    else if (edgeAndTriangles.second[1].y != edgeAndTriangles.first.x && edgeAndTriangles.second[1].y != edgeAndTriangles.first.y)
+                        bendingB = edgeAndTriangles.second[1].y;
+                    else if (edgeAndTriangles.second[1].z != edgeAndTriangles.first.x && edgeAndTriangles.second[1].z != edgeAndTriangles.first.y)
+                        bendingB = edgeAndTriangles.second[1].z;
+
+                    this->constraints.emplace_back(nodes, bendingA, bendingB, this->bending_compliance);
+                }
+            }
+
+            // =====================================================================================================================================
+
+
+            constraints_coloring();
+            find_max_node_cardinality();
 
             pin1();
             pin2();
+
+            // buffer per compute shaders
+            // nodi
+            glGenBuffers(1, &(this->ssbo_nodes));
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_nodes);
+            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Node)*this->nodes.size(), this->nodes.data(), GL_DYNAMIC_READ);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, N_SSBO, this->ssbo_nodes);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+            // coloring constraint
+            glGenBuffers(1, &(this->ssbo_cconstrs));
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_cconstrs);
+            std::vector<Constraint> sets_unrolled = {};
+            for(auto set : this->constr_sets){
+                for(auto c : set){
+                    sets_unrolled.push_back(c);
+                }
+            }
+            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Constraint)*sets_unrolled.size(), sets_unrolled.data(), GL_STATIC_READ);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, CC_SSBO, this->ssbo_cconstrs);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+
+            // jacobi constraints
+            glGenBuffers(1, &(this->ssbo_jconstrs));
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, this->ssbo_jconstrs);
+            glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Constraint)*this->constraints.size(), this->constraints.data(), GL_STATIC_READ);
+            glBindBufferBase(GL_SHADER_STORAGE_BUFFER, JC_SSBO, this->ssbo_jconstrs);
+            glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
         }
 
-        int find_same_vert(int i, Mesh &mesh) {
+        ~Cloth() {
+            free_resources();
+        }
+
+        void free_resources() {
+            glDeleteBuffers(1, &ssbo_nodes);
+            glDeleteBuffers(1, &ssbo_cconstrs);
+            glDeleteBuffers(1, &ssbo_jconstrs);
+            this->shader.destroy();
+            this->compute_predict.destroy();
+            this->TMP_compute_ground_collisions.destroy();
+            this->compute_solve_coloring_constraints.destroy();
+            this->compute_solve_jacobi_constraints.destroy();
+            this->compute_jacobi_add_correction.destroy();
+            this->compute_update_velocities.destroy();
+        }
+
+        int find_same_vert(unsigned int i, Mesh &mesh) {
 
             for (auto &[node_index, same_verts_list]: this->same_verts) {
                 if (mesh.vertices[i].Position.x == mesh.vertices[same_verts_list[0]].Position.x &&  //si usa il primo elemento della lista perchè è quello che per primo ha identificato un vertice diverso da quelli precedentemente controllati
@@ -122,7 +242,7 @@ namespace cloth {
             return -1;
         }
 
-        int find_corresponding_node (int i){
+        int find_corresponding_node (unsigned int i){
             for(auto &pair: this->same_verts){
                 for(auto vert : pair.second){
                     if(vert == i) {
@@ -133,6 +253,49 @@ namespace cloth {
             std::cout << "vertex index of vertex not found in existing vertices" << std::endl;
             return -1;
         }
+
+        void constraints_coloring(){
+
+            std::vector<bool> node_marks(this->nodes.size(), false);
+            std::vector<bool> constr_marks(this->constraints.size(), false);
+
+
+            while(std::find(constr_marks.begin(), constr_marks.end(), false) != constr_marks.end()) {
+                std::vector<Constraint> set;
+                for (int i = 0; i < node_marks.size(); i++) {
+                    node_marks[i] = false;
+                }
+                for (int i=0; i<this->constraints.size(); i++) {
+                    if(constr_marks[i] == true)
+                        continue;
+                    if (node_marks[this->constraints[i].a_node] == false && node_marks[this->constraints[i].b_node] == false){
+                        set.push_back(this->constraints[i]);
+                        constr_marks[i] = true;
+                        node_marks[this->constraints[i].a_node] = true;
+                        node_marks[this->constraints[i].b_node] = true;
+                    }
+                }
+                this->constr_sets.push_back(set);
+            }
+        }
+
+        void find_max_node_cardinality(){
+
+            std::vector<int> node_cardinalities(this->nodes.size());
+
+            for(auto &c : this->constraints) {
+                node_cardinalities[c.a_node]++;
+                node_cardinalities[c.b_node]++;
+            }
+
+            this->max_node_cardinality = 0;
+            for(auto n : node_cardinalities){
+                if (n > this->max_node_cardinality)
+                    this->max_node_cardinality = n;
+            }
+
+        }
+
 
         void render(render::Camera& c){
             sync_nodes_positions();
@@ -176,6 +339,7 @@ namespace cloth {
             }
         }
 
+
         void pin1() {
             this->nodes[10].m = std::numeric_limits<float>::infinity();
             this->nodes[10].w = 0.0f;
@@ -193,13 +357,21 @@ namespace cloth {
             this->nodes[20].w = 1.0f/node_mass;
         }
 
+        void proces_input(GLFWwindow *window){
+            if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
+                unpin1();
+            if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
+                unpin2();
+        }
+
 
         void simulate_XPBD(render::State& s, hashgrid::HashGrid& grid) {
             if(s.sim_type == CPU)
                 CPU_SIM(s, grid);
-            if(s.sim_type == GPU)
+            else //se simulazione in GPU (COLORING || JACOBI || HYBRID)
                 GPU_SIM(s, grid);
         }
+
 
         void CPU_SIM(render::State& s, hashgrid::HashGrid& grid){
             float time_step = s.simulation_step_time/s.iteration_per_frame;
@@ -228,10 +400,6 @@ namespace cloth {
                     continue;
 
                 n.vel += g * t;
-
-                if(i==0){
-                    std::cout << n.vel.x << ", " << n.vel.y << ", " << n.vel.z << ", " << std::endl;
-                }
 
                 float tmp_vel = sqrt(n.vel.x*n.vel.x + n.vel.y*n.vel.y + n.vel.z*n.vel.z); //forzo la velocità massima
                 if(tmp_vel>max_velocity)                                                   //
@@ -292,10 +460,127 @@ namespace cloth {
         }
 
 
-
-
         void GPU_SIM(render::State& s, hashgrid::HashGrid& grid){
+            float time_step = s.simulation_step_time/s.iteration_per_frame;
+            float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
+            float max_travel_distance = max_velocity * s.simulation_step_time;
 
+            if(s.hashgrid_sim == HASHGRID) {
+                updateHashGrid(grid);
+                queryAll(grid, max_travel_distance);
+            }
+            GPU_send_data();
+
+            for(int i=0; i< s.iteration_per_frame; ++i){
+                GPU_XPBD_update_velocity(time_step);
+                GPU_XPBD_predict(time_step, s.gravity, max_velocity);
+                GPU_solve_ground_collisions();
+                if(s.sim_type == GPU_COLORING) {
+                    GPU_XPBD_solve_constraints_coloring(time_step, 0);
+                }else if(s.sim_type == GPU_JACOBI) {
+                    GPU_XPBD_solve_constraints_jacobi(time_step, 0);
+                    GPU_XPBD_add_jacobi_correction();
+                }else if (s.sim_type == GPU_HYBRID) {
+                    GPU_XPBD_solve_constraints_coloring(time_step, 4);
+                    GPU_XPBD_solve_constraints_jacobi(time_step, 4);
+                    GPU_XPBD_add_jacobi_correction();
+                }
+                if(s.hashgrid_sim == HASHGRID) {
+                    GPU_retrieve_data();
+                    HG_solve_collisions();
+                    GPU_send_data();
+                }
+//            GPU_XPBD_update_velocity(time_step);
+            }
+
+            GPU_retrieve_data();
+        }
+
+        void GPU_send_data(){
+            //nodes
+            glNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
+
+        }
+
+        void GPU_retrieve_data(){
+            //nodes
+            glGetNamedBufferSubData(this->ssbo_nodes, 0, sizeof(Node)*this->nodes.size(), this->nodes.data());
+            int franco = 0;
+        }
+
+        void GPU_XPBD_predict(float time_step, glm::vec3 gravity, float max_velocity) {
+
+            this->compute_predict.setVec3("gravity", gravity);
+            this->compute_predict.setFloat("time_step", time_step);
+            this->compute_predict.setFloat("max_velocity", max_velocity);
+
+            this->compute_predict.use();
+            glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
+
+        void GPU_solve_ground_collisions() {
+
+            this->TMP_compute_ground_collisions.use();
+            glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+        }
+
+        void GPU_XPBD_solve_constraints_coloring(float time_step, int passes){
+
+            this->compute_solve_coloring_constraints.setFloat("time_step", time_step);
+
+            int set_start = 0;
+            int set_end = 0;
+
+            if(passes == 0)
+                passes = (int)constr_sets.size();
+
+            for(int i=0; i<passes; i++){
+                set_start = set_end;
+                set_end += (int)constr_sets[i].size();
+                this->compute_solve_coloring_constraints.setInt("set_start", set_start);
+                this->compute_solve_coloring_constraints.setInt("set_end", set_end);
+
+                this->compute_solve_coloring_constraints.use();
+                glDispatchCompute(std::ceil(constr_sets[i].size()/32), 1, 1);
+                glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+            }
+
+        }
+
+        void GPU_XPBD_solve_constraints_jacobi(float time_step, int coloring_passes){
+
+            this->compute_solve_jacobi_constraints.setFloat("time_step", time_step);
+
+            int first_constr = 0;
+            for(int i=0; i<coloring_passes; i++){
+                first_constr += (int)constr_sets[i].size();
+            }
+            this->compute_solve_jacobi_constraints.setInt("first_constr", first_constr);
+
+            this->compute_solve_jacobi_constraints.use();
+            glDispatchCompute(std::ceil((this->constraints.size()-first_constr)/32), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+        }
+
+        void GPU_XPBD_add_jacobi_correction(){
+            float magic_number = 0.2;
+            this->compute_jacobi_add_correction.setFloat("magic_number", magic_number);
+
+            this->compute_jacobi_add_correction.use();
+            glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+        }
+
+        void GPU_XPBD_update_velocity (float time_step){
+            this->compute_update_velocities.setFloat("time_step", time_step);
+
+            this->compute_update_velocities.use();
+            glDispatchCompute(std::ceil(this->nodes.size()/32), 1, 1);
+            glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
         }
 
 
@@ -308,7 +593,7 @@ namespace cloth {
             for(auto& n: this->nodes){
                 grid.cells[grid.hashIndex(n.pos)]++; //incremento il contatore di particelle della cella in cui sta il nodo
             }
-//#pragma omp parallel for
+#pragma omp parallel for
             for(int i=1; i<grid.cells.size(); i++){
                 grid.cells[i] += grid.cells[i-1];  // riempio tutte le celle della hashgrid
             }
@@ -404,42 +689,9 @@ namespace cloth {
             }
         }
 
-/*        void generate_constraints(){
-//            generate_stretch_constraints();
-//            generate_bend_constraints();
-//            constraints_coloring();
-//        }
-//
-//        void generate_stretch_constraints(){
-//
-//            for (auto &mesh : model.meshes) {
-//                for (int i = 0; i < mesh.indices.size(); i += 3) {
-//
-//                    this->constraints.emplace_back(nodes, i, i+1, this->stretching_compliance);
-//                    this->constraints.emplace_back(nodes, i+1, i+2, this->stretching_compliance);
-//                    this->constraints.emplace_back(nodes, i+2, i, this->stretching_compliance);
-//                }
-//            }
-//        }
-//
-//        void generate_bend_constraints(){
-//
-//            for(int i=0; i<rows-1; ++i){
-//                for(int j=0; j<columns-1; ++j){
-//                    this->constraints.emplace_back(nodes, i*columns+j, (i*columns+j)+(columns+1), this->bending_compliance);
-//                }
-//            }
-//            for(int i=1; i<rows; ++i){
-//                for(int j=0; j<columns-2; ++j){
-//                    this->constraints.emplace_back(nodes, i*columns+j, (i*columns+j)-(columns-2), this->bending_compliance);
-//                }
-//            }
-//            for(int i=0; i<rows-2; ++i){
-//                for(int j=1; j<columns; ++j){
-//                    this->constraints.emplace_back(nodes, i*columns+j, (i*columns+j)+(2*columns-1), this->bending_compliance);
-//                }
-//            }
-//        }
+
+
+
 //
 //        void constraints_coloring(){
 //
@@ -482,7 +734,7 @@ namespace cloth {
 //            }
 //
 //        }
-*/
+
 
     };
 }

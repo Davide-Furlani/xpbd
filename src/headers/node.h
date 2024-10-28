@@ -107,9 +107,8 @@ public:
         }
     
     /**
-     * Calculate distance value between two nodes
-     * @param node1
-     * @param node2
+     * Calculate distance value between this node and the provided one
+     * @param node
      * @returns distance
      */
     float distance(Node& node){

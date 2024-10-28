@@ -46,7 +46,8 @@ namespace render{
     }
 
     void process_camera_rotation(GLFWwindow* window, State& state, Camera& camera){
-        camera.update_rotation(state);
+        if(state.current_time_from_start > 1.0f)
+            camera.update_rotation(state);
     }
 
     void process_camera_movement(GLFWwindow* window, State& state, Camera& camera){

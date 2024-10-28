@@ -51,13 +51,14 @@ int main(){
     //cloth.GPU_send_data();
 
     std::filesystem::path cloth_model_path = "resources/Meshes/cloth.stl";
-    auto cloth_shaders_paths = std::pair<char const*, char const*> ("resources/Shaders/ClothVS.glsl", "resources/Shaders/ClothFS.glsl");
-    std::filesystem::path texture_p {"resources/Textures/tex1.jpg"};
-    cloth::Cloth cloth = Cloth{cloth_model_path, cloth_shaders_paths, texture_p, state};
+    cloth::Cloth cloth = Cloth{cloth_model_path, state};
 
     cloth.rotate(-90.0f, glm::vec3(1.0,0.0,0.0));
     cloth.translate(glm::vec3(0.0, 0.0, 0.5f));
     cloth.rotate(180.0f, glm::vec3(0.0,0.0,1.0));
+
+    if(state.sim_type != CPU)
+        cloth.GPU_send_data();
 
 
     render::Camera camera {glm::vec3(1.0, 4., 1.85), 
@@ -66,23 +67,6 @@ int main(){
     
     Axis axis {SCR_WIDTH, SCR_HEIGHT};
     Floor floor {SCR_WIDTH, SCR_HEIGHT};
-//    Model owl{"resources/Meshes/owl_light.stl"};
-//    Shader owl_shader{"resources/Shaders/owl.vert", "resources/Shaders/owl.frag"};
-//
-//
-//    for(auto& v: owl.meshes[0].vertices) {
-//        v.Position.x *= 0.1f;
-//        v.Position.y *= 0.1f;
-//        v.Position.z *= 0.1f;
-//    }
-//    owl.meshes[0].setupMesh();
-//
-//    mat4 projection = perspective(glm::radians(45.0f), static_cast<float>(SCR_WIDTH) / static_cast<float>(SCR_HEIGHT), 0.1f, 100.0f);
-//    owl_shader.use();
-//    owl_shader.setMat4("uniProjMatrix", projection);
-
-
-
 
 
 //    float benchmark_time[NUM_FRAME_MEAN];
@@ -110,20 +94,19 @@ int main(){
 
 
     
-//        if(state.sim_type == GPU){
-//            cloth.GPU_retrieve_data();
-//            cloth.proces_input(window);
-//            cloth.GPU_send_data();
-//        }else{ // CPU
-//            cloth.proces_input(window);
-//        }
-//
+        if(state.sim_type != CPU){
+            cloth.GPU_retrieve_data();
+            cloth.proces_input(window);
+            cloth.GPU_send_data();
+        }else{ // CPU
+            cloth.proces_input(window);
+        }
+
         cloth.simulate_XPBD(state, grid);
 
         cloth.render(camera);
         axis.render(camera);
         floor.render(camera);
-//        owl.Draw(owl_shader, &camera.pos, &camera.front_v, &camera.up_v);
 
         glfwSwapBuffers(window);
 //        glFlush(); // no framerate max
@@ -143,7 +126,6 @@ int main(){
 //    float avg_time = avg_sum/NUM_FRAME_MEAN;
 //    std::cout << "media: " << avg_time << std::endl;
 
-//    cloth.free_resources();
     axis.free();
     floor.free();
     glfwTerminate();

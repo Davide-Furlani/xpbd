@@ -27,5 +27,12 @@ struct Constraint
         this->rest_dist = nodes.at(node1).distance(nodes.at(node2));
         this->compliance = compliance;
     }
+
+    bool operator==(const Constraint other) const {
+        return this->a_node == other.a_node &&
+               this->b_node == other.b_node &&
+               this->rest_dist == other.rest_dist &&
+               this->compliance == other.compliance;
+    }
 };
 }

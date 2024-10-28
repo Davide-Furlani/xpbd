@@ -14,17 +14,16 @@
 #include "hashgrid.h"
 
 #define CPU 0
-#define GPU 1
+#define GPU_COLORING 1
+#define GPU_JACOBI 2
+#define GPU_HYBRID 3
+
 #define HASHGRID 1
 #define NO_HASHGRID 0
 
 #define N_SSBO 0
 #define CC_SSBO 1
 #define JC_SSBO 2
-
-#define COLORING 0
-#define JACOBI 1
-#define HYBRID 2
 
 namespace render {
     struct State {
