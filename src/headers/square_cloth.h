@@ -30,7 +30,6 @@
 //
 //
 //
-//namespace cloth{
 //class SquareCloth
 //{
 //public:
@@ -761,5 +760,3 @@
 //
 //
 //};
-//
-//}

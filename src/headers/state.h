@@ -25,8 +25,8 @@
 #define CC_SSBO 1
 #define JC_SSBO 2
 
-namespace render {
-    struct State {
+
+struct State {
     public:
         
         //simulation
@@ -99,5 +99,4 @@ namespace render {
             delta_mouseY_pos = last_mouseY_pos - current_mouseY_pos;
         }
 
-    };
-}
+};

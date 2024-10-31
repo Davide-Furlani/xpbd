@@ -13,6 +13,7 @@
 #include "headers/axis.h"
 #include "headers/floor.h"
 #include "headers/hashgrid.h"
+#include "headers/collision_sphere.h"
 
 
 constexpr unsigned int NUM_FRAME_MEAN = 600;
@@ -36,7 +37,7 @@ using namespace cloth;
 int main(){
 
     hashgrid::HashGrid grid {GRID_CELL_SIZE, CLOTH_WIDTH*CLOTH_HEIGHT, CLOTH_WIDTH*CLOTH_HEIGHT};
-    render::State state {SCR_WIDTH, SCR_HEIGHT, CPU, NO_HASHGRID};
+    State state {SCR_WIDTH, SCR_HEIGHT, CPU, NO_HASHGRID};
     GLFWwindow* window = getWindow(SCR_WIDTH, SCR_HEIGHT);
     
     set_GL_parameters();
@@ -47,26 +48,38 @@ int main(){
     std::cout << vendor << std::endl;
     std::cout << renderer << std::endl;
 
-    //cloth::SquareCloth cloth {CLOTH_HEIGHT, CLOTH_WIDTH, CLOTH_SIZE, PARTICLE_THICKNESS, state};
-    //cloth.GPU_send_data();
+    render::Camera camera {glm::vec3(0.0, 4.0, 1.85),
+                           glm::vec3(0.0, -1.0, -0.5),
+                           glm::vec3(0.0, 0.0, 1.0)};
 
-    std::filesystem::path cloth_model_path = "resources/Meshes/cloth.stl";
+    Axis axis {SCR_WIDTH, SCR_HEIGHT};
+//    Floor floor {SCR_WIDTH, SCR_HEIGHT};
+
+
+
+    Model mesh_sphere {"resources/Meshes/sphere_v2.stl"};
+    Shader sphere_shader {"resources/Shaders/sphere.vert", "resources/Shaders/sphere.frag"};
+    for(auto &v: mesh_sphere.meshes[0].vertices){
+        v.Position = v.Position + glm::vec3(0.0f, 0.0f, 0.0f);
+    }
+
+
+    mat4 projection = perspective(glm::radians(45.0f), static_cast<float>(SCR_WIDTH) / static_cast<float>(SCR_HEIGHT), 0.1f, 100.0f);
+    sphere_shader.use();
+    sphere_shader.setMat4("uniProjMatrix", projection);
+
+    CollisionSphere sphere {glm::vec3(0.0f, 0.0f, 0.0f), 0.25f};
+    std::vector<CollisionSphere> spheres {};
+    spheres.push_back(sphere);
+    bool scale_up = true;
+
+
+    std::filesystem::path cloth_model_path = "resources/Meshes/cloth_v2.stl";
     cloth::Cloth cloth = Cloth{cloth_model_path, state};
-
-    cloth.rotate(-90.0f, glm::vec3(1.0,0.0,0.0));
-    cloth.translate(glm::vec3(0.0, 0.0, 0.5f));
-    cloth.rotate(180.0f, glm::vec3(0.0,0.0,1.0));
-
+    cloth.rotate(-90.0f, glm::vec3(0.0,0.0,1.0));
+    cloth.translate(glm::vec3{0.0f, 0.0f, -0.25f});
     if(state.sim_type != CPU)
         cloth.GPU_send_data();
-
-
-    render::Camera camera {glm::vec3(1.0, 4., 1.85), 
-                           glm::vec3(0.0, -1.0, 0.0),
-                           glm::vec3(0.0, 0.0, 1.0)};
-    
-    Axis axis {SCR_WIDTH, SCR_HEIGHT};
-    Floor floor {SCR_WIDTH, SCR_HEIGHT};
 
 
 //    float benchmark_time[NUM_FRAME_MEAN];
@@ -102,11 +115,70 @@ int main(){
             cloth.proces_input(window);
         }
 
-        cloth.simulate_XPBD(state, grid);
+        if(scale_up){
+            if(spheres[0].radius < 0.55f){
+                float s_f = 1.003f;
+                spheres[0].scale(s_f);
+                for(auto &v: mesh_sphere.meshes[0].vertices){
+                    v.Position = v.Position * s_f;
+                }
+                mesh_sphere.meshes[0].setupMesh();
+            }
+            else{
+                std::cout << "scale down" << std::endl;
+                scale_up = false;
+            }
+        }else{
+            if(spheres[0].radius > 0.25f){
+                float s_f = 0.997f;
+                spheres[0].scale(s_f);
+                for(auto &v: mesh_sphere.meshes[0].vertices){
+                    v.Position = v.Position * s_f;
+                }
+                mesh_sphere.meshes[0].setupMesh();
+            }
+            else{
+                std::cout << "scale up" << std::endl;
+                scale_up = true;
+            }
+        }
+
+//        if(scale_up){
+//            if(spheres[0].center.x < 0.75f){
+//                float t_f = 0.003f;
+//                spheres[0].translate(glm::vec3 {t_f, 0.0, 0.0});
+//                for(auto &v: mesh_sphere.meshes[0].vertices){
+//                    v.Position = v.Position + t_f;
+//                }
+//                mesh_sphere.meshes[0].setupMesh();
+//            }
+//            else{
+//                std::cout << "scale down" << std::endl;
+//                scale_up = false;
+//            }
+//        }else{
+//            if(spheres[0].radius > 0.25f){
+//                float s_f = 0.997f;
+//                spheres[0].scale(s_f);
+//                for(auto &v: mesh_sphere.meshes[0].vertices){
+//                    v.Position = v.Position * s_f;
+//                }
+//                mesh_sphere.meshes[0].setupMesh();
+//            }
+//            else{
+//                std::cout << "scale up" << std::endl;
+//                scale_up = true;
+//            }
+//        }
+
+
+        cloth.simulate_XPBD(state, grid, spheres);
 
         cloth.render(camera);
         axis.render(camera);
-        floor.render(camera);
+//        floor.render(camera);
+        sphere_shader.use();
+        mesh_sphere.Draw(sphere_shader,&camera.pos, &camera.front_v, &camera.up_v);
 
         glfwSwapBuffers(window);
 //        glFlush(); // no framerate max
@@ -127,7 +199,7 @@ int main(){
 //    std::cout << "media: " << avg_time << std::endl;
 
     axis.free();
-    floor.free();
+//    floor.free();
     glfwTerminate();
 
     return 0;

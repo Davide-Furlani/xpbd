@@ -16,7 +16,6 @@
 #include "state.h"
 #include "camera.h"
 #include "square_cloth.h"
-#include "myshader.h"
 
 
 namespace render{

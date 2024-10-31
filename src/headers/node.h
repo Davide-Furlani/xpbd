@@ -119,5 +119,19 @@ public:
 
         return sqrt(x*x + y*y + z*z);
     }
+
+    /**
+     * Calculate distance value between this node and a point
+     * @param point
+     * @returns distance
+     */
+    float distance(glm::vec3 point){
+
+        float x = pos.x - point.x;
+        float y = pos.y - point.y;
+        float z = pos.z - point.z;
+
+        return sqrt(x*x + y*y + z*z);
+    }
 };
 }

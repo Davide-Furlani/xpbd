@@ -24,6 +24,7 @@
 #include "hashgrid.h"
 #include "camera.h"
 #include "display.h"
+#include "collision_sphere.h"
 
 
 
@@ -31,12 +32,14 @@
 namespace cloth {
     class Cloth {
     public:
-        // physics
+
         float node_mass = 0.01f;
         float node_thickness = 0.01f;
         float stretching_compliance = 0.0f;
         float bending_compliance = 0.03f;
         float self_friction = 0.2f;
+
+        std::vector<int> pinned_verts = std::vector<int>{};
 
         std::map<unsigned int, std::vector<unsigned int>> same_verts;
 
@@ -50,25 +53,21 @@ namespace cloth {
         GLuint ssbo_nodes;
         GLuint ssbo_cconstrs;
         GLuint ssbo_jconstrs;
-//    GLuint ssbo_grid_cells;
-//    GLuint ssbo_grid_nodes;
-//    GLuint ssbo_grid_neighbours;
+
         Shader compute_predict {"resources/gpu_kernels/next_predict_pos.comp"};
         Shader TMP_compute_ground_collisions {"resources/gpu_kernels/ground_collisions.comp"};
         Shader compute_solve_coloring_constraints {"resources/gpu_kernels/solve_coloring_constraints.comp"};
         Shader compute_solve_jacobi_constraints {"resources/gpu_kernels/solve_jacobi_constraints.comp"};
         Shader compute_jacobi_add_correction {"resources/gpu_kernels/jacobi_add_correction.comp"};
-//    Shader compute_HG_collisions {""};
         Shader compute_update_velocities {"resources/gpu_kernels/update_velocities.comp"};
 
         Model model;
-
         Shader shader {"resources/Shaders/ClothVS.glsl", "resources/Shaders/ClothFS.glsl"};
         unsigned int texture;
         std::filesystem::path texture_p {"resources/Textures/tex1.jpg"};
 
 
-        Cloth(std::filesystem::path &model_path, render::State &state): model{Model(model_path)}{
+        Cloth(std::filesystem::path &model_path, State &state): model{Model(model_path)}{
 
             if(this->model.meshes.size() > 1){
                 std::cerr << "Cloth require a model with a single mesh, you tried to load a model with " << model.meshes.size() << " meshes" << std::endl;
@@ -180,8 +179,7 @@ namespace cloth {
             constraints_coloring();
             find_max_node_cardinality();
 
-            pin1();
-            pin2();
+            pin();
 
             // buffer per compute shaders
             // nodi
@@ -330,6 +328,7 @@ namespace cloth {
             for(auto &n: this->nodes){
                 n.pos = n.pos + translation;
             }
+            this->sync_nodes_positions();
         }
         void rotate (float angle, glm::vec3 axis){
             for(auto &n: this->nodes){
@@ -337,43 +336,67 @@ namespace cloth {
                 glm::mat4 rotMat = glm::rotate(glm::mat4(1.0), glm::radians(angle), axis);
                 n.pos = glm::vec3(rotMat * glm::vec4(n.pos, 1.0));
             }
+            this->sync_nodes_positions();
+        }
+
+        // todo! facile da fare per la CPU, più complicato da fare funzionante anche per la simulaione in GPU
+        //       ignorabile se si preferisce scalare il modello prima di importarlo (avendolo già giusto nel file)
+        void scale(){
+
         }
 
 
-        void pin1() {
-            this->nodes[10].m = std::numeric_limits<float>::infinity();
-            this->nodes[10].w = 0.0f;
+        void pin() {
+
+
+            pinned_verts.resize(20);
+            for(auto& v: pinned_verts){
+                v = 0;
+            }
+
+            for(int i=0; i<this->nodes.size(); ++i){
+                if(this->nodes[i].pos.z > this->nodes[pinned_verts[0]].pos.z && this->nodes[i].pos.y < 0){
+                    pinned_verts[4] = pinned_verts[3];
+                    pinned_verts[3] = pinned_verts[2];
+                    pinned_verts[2] = pinned_verts[1];
+                    pinned_verts[1] = pinned_verts[0];
+                    pinned_verts[0] = i;
+                }
+                if(this->nodes[i].pos.z > this->nodes[pinned_verts[5]].pos.z && this->nodes[i].pos.y > 0){
+                    pinned_verts[9] = pinned_verts[8];
+                    pinned_verts[8] = pinned_verts[7];
+                    pinned_verts[7] = pinned_verts[6];
+                    pinned_verts[6] = pinned_verts[5];
+                    pinned_verts[5] = i;
+                }
+
+            }
+            for(int i=0; i<10; ++i){
+                this->nodes[pinned_verts[i]].m = std::numeric_limits<float>::infinity();
+                this->nodes[pinned_verts[i]].w = 0.0f;
+            }
         }
-        void pin2() {
-            this->nodes[20].m = std::numeric_limits<float>::infinity();
-            this->nodes[20].w = 0.0f;
-        }
-        void unpin1() {
-            this->nodes[10].m = node_mass;
-            this->nodes[10].w = 1.0f/node_mass;
-        }
-        void unpin2() {
-            this->nodes[20].m = node_mass;
-            this->nodes[20].w = 1.0f/node_mass;
+        void unpin() {
+            int i = 330;
+            this->nodes[i].m = node_mass;
+            this->nodes[i].w = 1.0f/node_mass;
         }
 
         void proces_input(GLFWwindow *window){
             if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-                unpin1();
-            if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-                unpin2();
+                unpin();
         }
 
 
-        void simulate_XPBD(render::State& s, hashgrid::HashGrid& grid) {
+        void simulate_XPBD(State& s, hashgrid::HashGrid& grid, vector<CollisionSphere> spheres = vector<CollisionSphere>{}) {
             if(s.sim_type == CPU)
-                CPU_SIM(s, grid);
+                CPU_SIM(s, grid, spheres);
             else //se simulazione in GPU (COLORING || JACOBI || HYBRID)
                 GPU_SIM(s, grid);
         }
 
 
-        void CPU_SIM(render::State& s, hashgrid::HashGrid& grid){
+        void CPU_SIM(State& s, hashgrid::HashGrid& grid, vector<CollisionSphere>& spheres){
             float time_step = s.simulation_step_time/s.iteration_per_frame;
             float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
             float max_travel_distance = max_velocity * s.simulation_step_time;
@@ -384,7 +407,8 @@ namespace cloth {
 
             for(int i=0; i< s.iteration_per_frame; ++i){
                 CPU_XPBD_predict(time_step, s.gravity, max_velocity);
-                CPU_XPBD_solve_ground_collisions();
+//                CPU_solve_ground_collisions();
+                CPU_solve_sphere_collisions(spheres);
                 CPU_XPBD_solve_constraints(time_step);
                 if(s.hashgrid_sim == HASHGRID)
                     HG_solve_collisions();
@@ -409,7 +433,7 @@ namespace cloth {
             }
         }
 
-        void CPU_XPBD_solve_ground_collisions() {
+        void CPU_solve_ground_collisions() {
             for (auto& n : nodes) {
                 if (n.w == 0.0)
                     continue;
@@ -418,6 +442,28 @@ namespace cloth {
                     glm::vec3 diff = n.pos - n.prev_pos;
                     n.pos += diff * -damping;
                     n.pos.z = 0.5f * n.thickness;
+                }
+            }
+        }
+
+        void CPU_solve_sphere_collisions(std::vector<CollisionSphere>& spheres) {
+            for (auto& sphere : spheres) {
+                for (auto &n: nodes) {
+                    if (n.w == 0.0f)
+                        continue;
+
+                    // todo! da cambiare per far si che il nodo non venga spostato fuori dalla sfera nella direzione del
+                    //       punto più vicino all'esterno della sfera, ma nella direzione di entrata del nodo nella sfera
+                    if (n.distance(sphere.center) < sphere.radius + 0.5f * n.thickness) {
+                        float damping = 0.02f;
+                        float min_displace_distance = sphere.radius - n.distance(sphere.center) + 0.5f * n.thickness;
+                        glm::vec3 displace_direction = glm::normalize(n.pos - sphere.center);
+                        glm::vec3 displace = displace_direction * min_displace_distance;
+                        n.pos = n.pos + displace;
+
+//                        glm::vec3 line = glm::normalize(glm::vec3{n.pos - n.prev_pos});
+
+                    }
                 }
             }
         }
@@ -460,7 +506,7 @@ namespace cloth {
         }
 
 
-        void GPU_SIM(render::State& s, hashgrid::HashGrid& grid){
+        void GPU_SIM(State& s, hashgrid::HashGrid& grid){
             float time_step = s.simulation_step_time/s.iteration_per_frame;
             float max_velocity = (0.5f * node_thickness) / time_step; // da tweakkare, più piccolo = meno possibili collisioni = simulazione più veloce
             float max_travel_distance = max_velocity * s.simulation_step_time;
@@ -474,7 +520,7 @@ namespace cloth {
             for(int i=0; i< s.iteration_per_frame; ++i){
                 GPU_XPBD_update_velocity(time_step);
                 GPU_XPBD_predict(time_step, s.gravity, max_velocity);
-                GPU_solve_ground_collisions();
+//                GPU_solve_ground_collisions();
                 if(s.sim_type == GPU_COLORING) {
                     GPU_XPBD_solve_constraints_coloring(time_step, 0);
                 }else if(s.sim_type == GPU_JACOBI) {
