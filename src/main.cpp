@@ -109,14 +109,14 @@ int main(){
     
         if(state.sim_type != CPU){
             cloth.GPU_retrieve_data();
-            cloth.proces_input(window);
+            cloth.process_input(window);
             cloth.GPU_send_data();
         }else{ // CPU
-            cloth.proces_input(window);
+            cloth.process_input(window);
         }
 
         if(scale_up){
-            if(spheres[0].radius < 0.55f){
+            if(spheres[0].radius < 0.45f){
                 float s_f = 1.003f;
                 spheres[0].scale(s_f);
                 for(auto &v: mesh_sphere.meshes[0].vertices){
@@ -142,34 +142,6 @@ int main(){
                 scale_up = true;
             }
         }
-
-//        if(scale_up){
-//            if(spheres[0].center.x < 0.75f){
-//                float t_f = 0.003f;
-//                spheres[0].translate(glm::vec3 {t_f, 0.0, 0.0});
-//                for(auto &v: mesh_sphere.meshes[0].vertices){
-//                    v.Position = v.Position + t_f;
-//                }
-//                mesh_sphere.meshes[0].setupMesh();
-//            }
-//            else{
-//                std::cout << "scale down" << std::endl;
-//                scale_up = false;
-//            }
-//        }else{
-//            if(spheres[0].radius > 0.25f){
-//                float s_f = 0.997f;
-//                spheres[0].scale(s_f);
-//                for(auto &v: mesh_sphere.meshes[0].vertices){
-//                    v.Position = v.Position * s_f;
-//                }
-//                mesh_sphere.meshes[0].setupMesh();
-//            }
-//            else{
-//                std::cout << "scale up" << std::endl;
-//                scale_up = true;
-//            }
-//        }
 
 
         cloth.simulate_XPBD(state, grid, spheres);

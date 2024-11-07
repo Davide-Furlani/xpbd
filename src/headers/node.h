@@ -127,11 +127,11 @@ public:
      */
     float distance(glm::vec3 point){
 
-        float x = pos.x - point.x;
-        float y = pos.y - point.y;
-        float z = pos.z - point.z;
+        float x = this->pos.x - point.x;
+        float y = this->pos.y - point.y;
+        float z = this->pos.z - point.z;
 
-        return sqrt(x*x + y*y + z*z);
+        return glm::sqrt(x*x + y*y + z*z);
     }
 };
 }

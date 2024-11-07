@@ -34,7 +34,7 @@ namespace cloth {
     public:
 
         float node_mass = 0.01f;
-        float node_thickness = 0.01f;
+        float node_thickness = 0.025f;
         float stretching_compliance = 0.0f;
         float bending_compliance = 0.03f;
         float self_friction = 0.2f;
@@ -209,6 +209,7 @@ namespace cloth {
             glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(Constraint)*this->constraints.size(), this->constraints.data(), GL_STATIC_READ);
             glBindBufferBase(GL_SHADER_STORAGE_BUFFER, JC_SSBO, this->ssbo_jconstrs);
             glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
         }
 
         ~Cloth() {
@@ -347,8 +348,6 @@ namespace cloth {
 
 
         void pin() {
-
-
             pinned_verts.resize(20);
             for(auto& v: pinned_verts){
                 v = 0;
@@ -377,14 +376,16 @@ namespace cloth {
             }
         }
         void unpin() {
-            int i = 330;
-            this->nodes[i].m = node_mass;
-            this->nodes[i].w = 1.0f/node_mass;
+            for(int i=0; i<this->pinned_verts.size(); ++i) {
+                this->nodes[i].m = node_mass;
+                this->nodes[i].w = 1.0f / node_mass;
+            }
+            this->sync_nodes_positions();
         }
 
-        void proces_input(GLFWwindow *window){
+        void process_input(GLFWwindow *window){
             if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-                unpin();
+                this->unpin();
         }
 
 
@@ -410,6 +411,7 @@ namespace cloth {
 //                CPU_solve_ground_collisions();
                 CPU_solve_sphere_collisions(spheres);
                 CPU_XPBD_solve_constraints(time_step);
+                CPU_solve_sphere_collisions(spheres);
                 if(s.hashgrid_sim == HASHGRID)
                     HG_solve_collisions();
                 CPU_XPBD_update_velocity(time_step);
@@ -448,20 +450,48 @@ namespace cloth {
 
         void CPU_solve_sphere_collisions(std::vector<CollisionSphere>& spheres) {
             for (auto& sphere : spheres) {
-                for (auto &n: nodes) {
-                    if (n.w == 0.0f)
+                for (int n=0; n<this->nodes.size(); ++n) {
+                    if (this->nodes[n].w == 0.0f)
                         continue;
 
-                    // todo! da cambiare per far si che il nodo non venga spostato fuori dalla sfera nella direzione del
-                    //       punto più vicino all'esterno della sfera, ma nella direzione di entrata del nodo nella sfera
-                    if (n.distance(sphere.center) < sphere.radius + 0.5f * n.thickness) {
-                        float damping = 0.02f;
-                        float min_displace_distance = sphere.radius - n.distance(sphere.center) + 0.5f * n.thickness;
-                        glm::vec3 displace_direction = glm::normalize(n.pos - sphere.center);
-                        glm::vec3 displace = displace_direction * min_displace_distance;
-                        n.pos = n.pos + displace;
+                    if (this->nodes[n].distance(sphere.center) < sphere.radius) { //+ 0.5f * n.thickness
 
-//                        glm::vec3 line = glm::normalize(glm::vec3{n.pos - n.prev_pos});
+                        glm::vec3 oc = this->nodes[n].prev_pos - sphere.center;
+                        float oc_len_sq = glm::length(oc) * glm::length(oc);
+                        float radius_sq = sphere.radius * sphere.radius;
+                        glm::vec3 u = this->nodes[n].pos - this->nodes[n].prev_pos;
+                        float u_len = glm::length(u);
+                        float a = u_len * u_len;
+                        float b = 2 * glm::dot(u, oc);
+                        float c = oc_len_sq - radius_sq;
+
+                        float discriminant = b*b - 4*a*c;
+
+                        if (discriminant <= 0){
+                            std::cout << "disc neg" << std::endl;
+                            float min_displace_distance = sphere.radius - this->nodes[n].distance(sphere.center) + 0.5f * this->nodes[n].thickness;
+                            glm::vec3 displace_direction = glm::normalize(this->nodes[n].pos - sphere.center);
+                            glm::vec3 displace = displace_direction * min_displace_distance;
+                            this->nodes[n].pos = this->nodes[n].pos + displace;
+                            break;
+                        }
+
+                        float sqrtd = glm::sqrt(discriminant);
+
+                        float d1 = (-b + sqrtd) / (2*a);
+                        float d2 = (-b - sqrtd) / (2*a);
+
+                        if (d1<0 || d2<0){
+                            float min_displace_distance = sphere.radius - this->nodes[n].distance(sphere.center) + 0.5f * this->nodes[n].thickness;
+                            glm::vec3 displace_direction = glm::normalize(this->nodes[n].pos - sphere.center);
+                            glm::vec3 displace = displace_direction * min_displace_distance;
+                            this->nodes[n].pos = this->nodes[n].pos + displace;
+                            break;
+                        }
+
+                        this->nodes[n].pos = this->nodes[n].prev_pos + (u * glm::min(d1, d2));
+                        this->nodes[n].pos = this->nodes[n].pos + (glm::normalize(this->nodes[n].pos - sphere.center) * 0.5f * this->nodes[n].thickness);
+
 
                     }
                 }
